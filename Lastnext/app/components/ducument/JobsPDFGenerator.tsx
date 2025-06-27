@@ -153,6 +153,11 @@ const JobsPDFDocument: React.FC<JobsPDFDocumentProps> = ({ jobs, filter, selecte
     pageGroups.push(filteredJobs.slice(i, i + jobsPerPage));
   }
 
+  const topics = [ /* ...array ของหัวข้อ... */ ];
+  const onTopicChange = (topicId: string) => {
+    // อัปเดต filter state หรือเรียก fetch ข้อมูลใหม่
+  };
+
   return (
     <Document>
       {pageGroups.map((jobGroup, pageIndex) => (
