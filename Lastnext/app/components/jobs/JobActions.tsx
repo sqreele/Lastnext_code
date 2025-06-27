@@ -38,6 +38,8 @@ interface JobActionsProps {
   properties?: Property[];
 }
 
+type Topic = { id: string; title: string }; // Adjust fields as needed
+
 export default function JobActions({
   onSort,
   currentSort = "Newest first",
@@ -96,12 +98,19 @@ export default function JobActions({
       setIsGenerating(true);
       const propertyName = getPropertyName(selectedProperty);
 
+      const topics: Topic[] = [ /* ...array of topics... */ ];
+      const onTopicChange = (topicId: string) => {
+        // handle topic change (if needed for PDF)
+      };
+
       const blob = await pdf(
         <JobsPDFDocument
           jobs={jobs}
           filter={currentTab}
           selectedProperty={selectedProperty}
           propertyName={propertyName}
+          topics={topics}
+          onTopicChange={onTopicChange}
         />
       ).toBlob();
 
@@ -148,6 +157,11 @@ export default function JobActions({
   const menuLabelClass = "text-xs font-semibold text-zinc-400 px-3 py-1.5";
   const dropdownContentClass = "w-[200px] bg-zinc-950 border-zinc-800 rounded-lg shadow-lg";
   const buttonClass = "flex items-center gap-2 text-sm h-9";
+
+  const topics: Topic[] = [ /* ...array of topics... */ ];
+  const onTopicChange = (topicId: string) => {
+    // handle topic change (if needed for PDF)
+  };
 
   return (
     <div className="flex items-center gap-2">
