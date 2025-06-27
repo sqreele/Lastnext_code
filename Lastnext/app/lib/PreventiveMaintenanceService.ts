@@ -5,12 +5,10 @@ import { handleApiError, ApiError } from './api-client';
 import {
   validateFrequency,
   type PreventiveMaintenance,
-  type FrequencyType,
+
   type ServiceResponse,
 } from './preventiveMaintenanceModels';
-import { getSession } from "next-auth/react";
-import { jwtDecode } from "jwt-decode";
-import axios from "axios";
+
 
 export type CreatePreventiveMaintenanceData = {
   pmtitle: string;

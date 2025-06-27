@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Search, X, ChevronDown } from 'lucide-react';
 
 const getFrequencyText = (freq: string | number) => {
@@ -31,6 +31,8 @@ interface FilterPanelProps {
   onFilterChangeAction: (key: keyof FilterState, value: string | number) => void;
   onClearFiltersAction: () => void;
   onSortChangeAction: (sortBy: SortField, sortOrder: 'asc' | 'desc') => void;
+  topics: any[];
+  onTopicChange: (topic: string) => void;
 }
 
 const defaultFilters: FilterState = {
@@ -53,7 +55,11 @@ export default function FilterPanel({
   onFilterChangeAction,
   onClearFiltersAction,
   onSortChangeAction,
+  topics,
+  onTopicChange,
 }: FilterPanelProps) {
+  const [filterTopic, setFilterTopic] = useState<string>('all');
+
   const getMachineNameById = (machineId: string) => {
     const machine = machineOptions.find(m => m.id === machineId);
     return machine ? machine.name : machineId;
@@ -193,6 +199,22 @@ export default function FilterPanel({
             <option value="machine-asc">Machine (A-Z)</option>
             <option value="machine-desc">Machine (Z-A)</option>
           </select>
+        </FilterSection>
+
+        <FilterSection title="Filter by Topic">
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Topic</label>
+            <select
+              value={filterTopic}
+              onChange={e => setFilterTopic(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2"
+            >
+              <option value="all">All Topics</option>
+              {topics.map(topic => (
+                <option key={topic.id} value={topic.id}>{topic.title}</option>
+              ))}
+            </select>
+          </div>
         </FilterSection>
       </div>
       

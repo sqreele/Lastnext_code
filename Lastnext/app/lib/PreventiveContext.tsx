@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect, useReducer, useMemo } from 'react';
 import { 
   PreventiveMaintenance, 
   FrequencyType, 

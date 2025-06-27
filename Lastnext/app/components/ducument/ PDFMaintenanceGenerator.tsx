@@ -40,6 +40,7 @@ interface InitialFilters {
   machineId: string;
   page: number;
   pageSize: number;
+  topic?: string;
 }
 
 interface PDFMaintenanceGeneratorProps {
@@ -51,13 +52,11 @@ interface MachineOption {
   label: string;
 }
 
-const PDFMaintenanceGenerator: React.FC<PDFMaintenanceGeneratorProps> = ({ 
-  initialFilters 
-}) => {
+const PDFMaintenanceGenerator: React.FC<PDFMaintenanceGeneratorProps> = ({ initialFilters }) => {
   const router = useRouter();
   
   // Get maintenance data from context
-  const { maintenanceItems, fetchMaintenanceItems } = usePreventiveMaintenance();
+  const { maintenanceItems, fetchMaintenanceItems, topics } = usePreventiveMaintenance();
   const maintenanceData = maintenanceItems || [];
   
   // Initialize filters with URL parameters or defaults
@@ -76,6 +75,7 @@ const PDFMaintenanceGenerator: React.FC<PDFMaintenanceGeneratorProps> = ({
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [imageDataUrls, setImageDataUrls] = useState<{[key: string]: string}>({});
   const printRef = useRef(null);
+  const [filterTopic, setFilterTopic] = useState(initialFilters?.topic || 'all');
 
   // Helper functions
   const getTaskStatus = (item: PreventiveMaintenance) => {
@@ -158,7 +158,9 @@ const PDFMaintenanceGenerator: React.FC<PDFMaintenanceGeneratorProps> = ({
     
     const completedMatch = includeCompleted || actualStatus !== 'completed';
     
-    return statusMatch && frequencyMatch && machineMatch && dateMatch && completedMatch && searchMatch;
+    const topicMatch = filterTopic === 'all' || (item.topics && item.topics.some((t: any) => t.id === filterTopic));
+    
+    return statusMatch && frequencyMatch && machineMatch && dateMatch && completedMatch && searchMatch && topicMatch;
   });
 
   // ✅ Test machine filtering function
@@ -727,6 +729,21 @@ const PDFMaintenanceGenerator: React.FC<PDFMaintenanceGeneratorProps> = ({
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+        </div>
+
+        {/* Filter by Topic */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Topic</label>
+          <select
+            value={filterTopic}
+            onChange={(e) => setFilterTopic(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Topics</option>
+            {topics.map(topic => (
+              <option key={topic.id} value={topic.id}>{topic.title}</option>
+            ))}
+          </select>
         </div>
 
         {/* Options */}
