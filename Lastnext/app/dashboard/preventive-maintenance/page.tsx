@@ -35,6 +35,21 @@ import {
 // Define the sort field type
 type SortField = 'date' | 'status' | 'frequency' | 'machine';
 
+// Example Topic type (adjust as needed)
+type Topic = { id: string; title: string };
+
+// Example topics array (replace with your real data source)
+const topics: Topic[] = [
+  { id: "1", title: "General" },
+  { id: "2", title: "Electrical" },
+  // ...etc
+];
+
+// Example onTopicChange function
+const onTopicChange = (topicId: string) => {
+  // Update filter state or fetch new data as needed
+};
+
 export default function PreventiveMaintenanceListPage() {
   const router = useRouter();
   const { currentFilters, updateFilter, clearFilters } = useFilters();
@@ -327,6 +342,8 @@ export default function PreventiveMaintenanceListPage() {
             onFilterChangeAction={handleFilterChangeWrapper}
             onClearFiltersAction={clearAllFilters}
             onSortChangeAction={handleSortChangeAction}
+            topics={topics}
+            onTopicChange={onTopicChange}
           />
         )}
 
