@@ -17,6 +17,8 @@ interface JobsPDFDocumentProps {
   filter: TabValue;
   selectedProperty?: string | null;
   propertyName?: string;
+  topics: any[];
+  onTopicChange: (topicId: string) => void;
 }
 
 const styles = StyleSheet.create({
@@ -100,7 +102,7 @@ const styles = StyleSheet.create({
   }
 });
 
-const JobsPDFDocument: React.FC<JobsPDFDocumentProps> = ({ jobs, filter, selectedProperty, propertyName }) => {
+const JobsPDFDocument: React.FC<JobsPDFDocumentProps> = ({ jobs, filter, selectedProperty, propertyName, topics, onTopicChange }) => {
   const filteredJobs = jobs.filter((job) => {
     if (!selectedProperty) return true;
 
@@ -152,11 +154,6 @@ const JobsPDFDocument: React.FC<JobsPDFDocumentProps> = ({ jobs, filter, selecte
   for (let i = 0; i < filteredJobs.length; i += jobsPerPage) {
     pageGroups.push(filteredJobs.slice(i, i + jobsPerPage));
   }
-
-  const topics = [ /* ...array ของหัวข้อ... */ ];
-  const onTopicChange = (topicId: string) => {
-    // อัปเดต filter state หรือเรียก fetch ข้อมูลใหม่
-  };
 
   return (
     <Document>
