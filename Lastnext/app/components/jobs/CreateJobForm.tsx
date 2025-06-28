@@ -36,7 +36,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
 }) => {
   const router = useRouter();
   const { toast } = useToast();
-  const { selectedProperty, userProperties } = usePropertyStore();
+  const { selectedProperty, userProperties, setSelectedProperty } = usePropertyStore();
   const { triggerJobCreation } = useJobStore();
 
   // Form state
@@ -218,6 +218,32 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
 
               {/* Basic Information Tab */}
               <TabsContent value="basic" className="space-y-4">
+                {/* Property Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="property">Property *</Label>
+                  <Select 
+                    value={selectedProperty || ''} 
+                    onValueChange={(value) => {
+                      // Update the selected property in the store
+                      setSelectedProperty(value);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a property" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {userProperties.map((property) => (
+                        <SelectItem key={property.property_id} value={property.property_id}>
+                          {property.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!selectedProperty && (
+                    <p className="text-sm text-red-600">Please select a property to continue</p>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="description">Job Description *</Label>
