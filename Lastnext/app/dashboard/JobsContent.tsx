@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useProperty } from "@/app/lib/PropertyContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import JobList from "@/app/components/jobs/jobList";
 import { Job, Property, TabValue } from "@/app/lib/types";
@@ -15,6 +14,7 @@ import {
 } from "@/app/components/ui/dropdown-menu";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
+import { usePropertyStore } from "@/app/lib/stores/propertyStore";
 
 interface JobsContentProps {
   jobs: Job[];
@@ -39,7 +39,7 @@ const tabConfig = [
 export default function JobsContent({ jobs, properties }: JobsContentProps) {
   const [currentTab, setCurrentTab] = useState<TabValue>("all");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const { selectedProperty } = useProperty();
+  const { selectedProperty } = usePropertyStore();
 
   const filteredJobs = useMemo(() => {
     if (!Array.isArray(jobs)) return [];
@@ -155,9 +155,10 @@ export default function JobsContent({ jobs, properties }: JobsContentProps) {
         {tabConfig.map(({ value }) => (
           <TabsContent key={value} value={value} className="mt-0">
             <JobList 
-              jobs={sortedJobs}
-              filter={value as TabValue} 
-              properties={properties}
+              initialJobs={sortedJobs}
+              showFilters={false}
+              showPagination={true}
+              maxJobs={50}
             />
           </TabsContent>
         ))}

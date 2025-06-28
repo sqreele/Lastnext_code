@@ -13,6 +13,7 @@ interface FilterState {
   page: number;
   pageSize: number;
   machine: string; // Add machine filter
+  topic: string; // Add topic filter
 }
 
 interface FilterContextType {
@@ -31,6 +32,7 @@ const defaultFilters: FilterState = {
   page: 1,
   pageSize: 10,
   machine: '', // Add default machine filter
+  topic: '', // Add default topic filter
 };
 
 const FilterContext = createContext<FilterContextType | undefined>(undefined);

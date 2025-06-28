@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { usePreventiveMaintenance } from '@/app/lib/PreventiveContext';
-import { useFilters } from '@/app/lib/FilterContext';
+import { usePreventiveMaintenanceStore } from '@/app/lib/stores/preventiveMaintenanceStore';
+import { useFilterStore } from '@/app/lib/stores/filterStore';
+import { usePropertyStore } from '@/app/lib/stores/propertyStore';
 import { PreventiveMaintenance } from '@/app/lib/preventiveMaintenanceModels';
 
 // Import types
@@ -52,7 +53,15 @@ const onTopicChange = (topicId: string) => {
 
 export default function PreventiveMaintenanceListPage() {
   const router = useRouter();
-  const { currentFilters, updateFilter, clearFilters } = useFilters();
+  
+  // Zustand stores
+  const {
+    currentFilters,
+    updateFilter,
+    clearFilters
+  } = useFilterStore();
+  
+  const { selectedProperty } = usePropertyStore();
   
   const {
     maintenanceItems,
@@ -67,7 +76,7 @@ export default function PreventiveMaintenanceListPage() {
     clearError,
     debugMachineFilter,
     testMachineFiltering
-  } = usePreventiveMaintenance();
+  } = usePreventiveMaintenanceStore();
 
   // UI state
   const [showFilters, setShowFilters] = useState(false);
@@ -115,6 +124,7 @@ export default function PreventiveMaintenanceListPage() {
         start_date: currentFilters.startDate || '',
         end_date: currentFilters.endDate || '',
         machine_id: currentFilters.machine || '',
+        topic: currentFilters.topic || '',
         page: currentFilters.page || 1,
         page_size: currentFilters.pageSize || 10
       };
@@ -180,7 +190,8 @@ export default function PreventiveMaintenanceListPage() {
       'endDate': 'endDate',
       'page': 'page',
       'pageSize': 'pageSize',
-      'machine': 'machine'
+      'machine': 'machine',
+      'topic': 'topic'
     };
 
     const filterKey = validKeys[key];
@@ -290,6 +301,7 @@ export default function PreventiveMaintenanceListPage() {
       currentFilters.startDate,
       currentFilters.endDate,
       currentFilters.machine,
+      currentFilters.topic,
     ].filter(value => value !== '').length;
   }, [currentFilters]);
 
