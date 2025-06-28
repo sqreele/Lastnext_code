@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePreventiveMaintenance } from '@/app/lib/PreventiveContext'; // Fixed import path
+import { usePreventiveMaintenanceStore } from '@/app/lib/stores/preventiveMaintenanceStore';
 import { PreventiveMaintenance } from '@/app/lib/preventiveMaintenanceModels';
 import { preventiveMaintenanceService } from '@/app/lib/PreventiveMaintenanceService';
 
@@ -77,7 +77,7 @@ export default function PreventiveMaintenanceDashboard() {
     isLoading, 
     error,
     fetchStatistics 
-  } = usePreventiveMaintenance();
+  } = usePreventiveMaintenanceStore();
 
   // Fetch stats on component mount
   useEffect(() => {
