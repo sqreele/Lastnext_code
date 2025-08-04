@@ -6,8 +6,6 @@ import {
   CheckCircle, 
   Clock, 
   AlertTriangle, 
-  TrendingUp, 
-  Users, 
   Building,
   X
 } from 'lucide-react';
@@ -124,13 +122,13 @@ export default function DashboardOverview({
 
         {/* Quick Actions */}
         <div className="mt-6 flex flex-wrap gap-3">
-          
+          <a
             href="/dashboard/createJob"
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
           >
             Create New Job
           </a>
-          
+          <a
             href="/dashboard/Preventive_maintenance"
             className="inline-flex items-center px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 transition-colors"
           >
