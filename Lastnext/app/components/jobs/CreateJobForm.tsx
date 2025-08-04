@@ -26,13 +26,15 @@ interface CreateJobFormProps {
   onCancel?: () => void;
   initialData?: Partial<Job>;
   isEdit?: boolean;
+  propertyId?: string;
 }
 
 const CreateJobForm: React.FC<CreateJobFormProps> = ({
   onSuccess,
   onCancel,
   initialData = {},
-  isEdit = false
+  isEdit = false,
+  propertyId
 }) => {
   const router = useRouter();
   const { toast } = useToast();
@@ -57,6 +59,20 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [topics, setTopics] = useState<TopicFromAPI[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Calculate form completion percentage
+  const calculateCompletion = () => {
+    let completed = 0;
+    let total = 4; // Basic required fields
+
+    if (formData.description.trim().length >= 10) completed++;
+    if (selectedProperty) completed++;
+    if (selectedRoom) completed++;
+    if (selectedTopic) completed++;
+
+    return Math.round((completed / total) * 100);
+  };
 
   // Load initial data
   useEffect(() => {
@@ -68,6 +84,13 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       setImageUrls(urls);
     }
   }, [initialData]);
+
+  // Handle propertyId prop if passed
+  useEffect(() => {
+    if (propertyId && propertyId !== selectedProperty) {
+      setSelectedProperty(propertyId);
+    }
+  }, [propertyId, selectedProperty, setSelectedProperty]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -108,10 +131,29 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       return false;
     }
 
+    if (formData.description.trim().length < 10) {
+      toast({
+        title: "Validation Error",
+        description: "Job description should be at least 10 characters long",
+        variant: "destructive"
+      });
+      return false;
+    }
+
     if (!selectedProperty) {
       toast({
         title: "Validation Error",
         description: "Please select a property",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    // Validate estimated hours if provided
+    if (formData.estimated_hours && parseFloat(formData.estimated_hours) < 0) {
+      toast({
+        title: "Validation Error",
+        description: "Estimated hours must be a positive number",
         variant: "destructive"
       });
       return false;
@@ -193,6 +235,86 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
     { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800' }
   ];
 
+  // If no property is selected, show property selection first
+  if (!selectedProperty) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Edit3 className="w-5 h-5" />
+              Select Property
+            </CardTitle>
+            <CardDescription>
+              Please select a property to create a maintenance job
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="property">Property *</Label>
+                <Select 
+                  value={selectedProperty || ''} 
+                  onValueChange={(value) => {
+                    setSelectedProperty(value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a property" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userProperties.map((property) => (
+                      <SelectItem key={property.property_id} value={property.property_id}>
+                        {property.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {userProperties.length === 0 ? (
+                  <div className="p-4 border rounded-lg bg-yellow-50 border-yellow-200">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-yellow-600" />
+                      <div>
+                        <p className="text-yellow-800 font-medium">No Properties Available</p>
+                        <p className="text-yellow-700 text-sm">
+                          Please contact your administrator to add properties to your account.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600">
+                    Select a property to continue creating your maintenance job
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                {onCancel && (
+                  <Button type="button" variant="outline" onClick={onCancel}>
+                    Cancel
+                  </Button>
+                )}
+                {userProperties.length > 0 && (
+                  <Button 
+                    type="button" 
+                    disabled={!selectedProperty}
+                    onClick={() => {
+                      // This will trigger the form to show once a property is selected
+                    }}
+                  >
+                    Continue
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6">
       <Card>
@@ -204,9 +326,39 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
           <CardDescription>
             {isEdit ? 'Update job details and information' : 'Fill in the details to create a new maintenance job'}
           </CardDescription>
+          {selectedProperty && (
+            <div className="mt-2 flex items-center gap-2">
+              <Badge variant="secondary" className="text-sm">
+                Property: {userProperties.find(p => p.property_id === selectedProperty)?.name}
+              </Badge>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedProperty('')}
+                className="h-6 px-2 text-xs"
+              >
+                Change
+              </Button>
+            </div>
+          )}
         </CardHeader>
 
         <CardContent>
+          {/* Form Progress */}
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium text-gray-700">Form Completion</span>
+              <span className="text-sm text-gray-500">{calculateCompletion()}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                style={{ width: `${calculateCompletion()}%` }}
+              ></div>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-4">
@@ -218,30 +370,41 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
 
               {/* Basic Information Tab */}
               <TabsContent value="basic" className="space-y-4">
-                {/* Property Selection */}
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-blue-800">Tips for creating a good maintenance job</h4>
+                      <ul className="text-sm text-blue-700 mt-1 space-y-1">
+                        <li>• Be specific about the issue or work required</li>
+                        <li>• Include relevant room and topic information</li>
+                        <li>• Set appropriate priority based on urgency</li>
+                        <li>• Add images to help visualize the problem</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                {/* Property Selection - Read Only since it's already selected */}
                 <div className="space-y-2">
-                  <Label htmlFor="property">Property *</Label>
-                  <Select 
-                    value={selectedProperty || ''} 
-                    onValueChange={(value) => {
-                      // Update the selected property in the store
-                      setSelectedProperty(value);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a property" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userProperties.map((property) => (
-                        <SelectItem key={property.property_id} value={property.property_id}>
-                          {property.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!selectedProperty && (
-                    <p className="text-sm text-red-600">Please select a property to continue</p>
-                  )}
+                  <Label htmlFor="property">Property</Label>
+                  <div className="flex items-center gap-2 p-3 border rounded-md bg-gray-50">
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">
+                        {userProperties.find(p => p.property_id === selectedProperty)?.name}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Property ID: {selectedProperty}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedProperty('')}
+                    >
+                      Change
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -255,6 +418,14 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                       rows={4}
                       required
                     />
+                    <div className="flex justify-between items-center text-sm">
+                      <span className={formData.description.length < 10 ? "text-red-500" : "text-gray-500"}>
+                        Minimum 10 characters recommended
+                      </span>
+                      <span className={formData.description.length > 1000 ? "text-red-500" : "text-gray-500"}>
+                        {formData.description.length}/1000
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-2">

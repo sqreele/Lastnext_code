@@ -43,21 +43,13 @@ export default function CreateJobPage() {
         Fill out the form below to add a new job.
       </p>
       
-      {activePropertyId ? (
-        <Suspense fallback={
-          <div className="flex items-center justify-center p-4 text-sm sm:text-base text-gray-500">
-            Loading form...
-          </div>
-        }>
-          <CreateJobForm propertyId={activePropertyId} />
-        </Suspense>
-      ) : (
-        <div className="p-4 border rounded-lg bg-yellow-50 border-yellow-200">
-          <p className="text-yellow-800">
-            Please select a property first to create a maintenance job.
-          </p>
+      <Suspense fallback={
+        <div className="flex items-center justify-center p-4 text-sm sm:text-base text-gray-500">
+          Loading form...
         </div>
-      )}
+      }>
+        <CreateJobForm />
+      </Suspense>
     </div>
   );
 }
