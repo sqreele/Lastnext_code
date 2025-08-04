@@ -20,23 +20,30 @@ import { cn } from '@/app/lib/utils';
 import RoomAutocomplete from './RoomAutocomplete';
 import TopicAutocomplete from './TopicAutocomplete';
 import FileUpload from './FileUpload';
+import PropertyHeader from './PropertyHeader';
+import JobBreadcrumb from './JobBreadcrumb';
 
 interface CreateJobFormProps {
   onSuccess?: (job: Job) => void;
   onCancel?: () => void;
   initialData?: Partial<Job>;
   isEdit?: boolean;
+  propertyId?: string;
 }
 
 const CreateJobForm: React.FC<CreateJobFormProps> = ({
   onSuccess,
   onCancel,
   initialData = {},
-  isEdit = false
+  isEdit = false,
+  propertyId
 }) => {
   const router = useRouter();
   const { toast } = useToast();
   const { selectedProperty, userProperties, setSelectedProperty } = usePropertyStore();
+  
+  // Use provided propertyId if available, otherwise use selectedProperty
+  const currentPropertyId = propertyId || selectedProperty;
   const { triggerJobCreation } = useJobStore();
 
   // Form state
@@ -108,7 +115,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       return false;
     }
 
-    if (!selectedProperty) {
+    if (!currentPropertyId) {
       toast({
         title: "Validation Error",
         description: "Please select a property",
@@ -131,7 +138,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       // Prepare job data first (without images)
       const jobData = {
         ...formData,
-        property_id: selectedProperty || undefined,
+        property_id: currentPropertyId,
         room_id: selectedRoom?.room_id,
         topic_id: selectedTopic?.id,
         estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : null
@@ -195,15 +202,47 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto p-6">
+      {/* Breadcrumb */}
+      <JobBreadcrumb />
+      
+      {/* Property Header */}
+      <PropertyHeader propertyId={currentPropertyId} />
+      
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Edit3 className="w-5 h-5" />
-            {isEdit ? 'Edit Job' : 'Create New Job'}
-          </CardTitle>
-          <CardDescription>
-            {isEdit ? 'Update job details and information' : 'Fill in the details to create a new maintenance job'}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Edit3 className="w-5 h-5" />
+                {isEdit ? 'Edit Job' : 'Create New Job'}
+              </CardTitle>
+              <CardDescription>
+                {isEdit ? 'Update job details and information' : 'Fill in the details to create a new maintenance job'}
+              </CardDescription>
+            </div>
+            {userProperties.length > 1 && (
+              <div className="flex items-center gap-2">
+                <Label htmlFor="property-switch" className="text-sm font-medium">
+                  Switch Property:
+                </Label>
+                <Select 
+                  value={currentPropertyId || ''} 
+                  onValueChange={(value) => setSelectedProperty(value)}
+                >
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userProperties.map((property) => (
+                      <SelectItem key={property.property_id} value={property.property_id}>
+                        {property.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
         </CardHeader>
 
         <CardContent>
@@ -222,7 +261,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                 <div className="space-y-2">
                   <Label htmlFor="property">Property *</Label>
                   <Select 
-                    value={selectedProperty || ''} 
+                    value={currentPropertyId || ''} 
                     onValueChange={(value) => {
                       // Update the selected property in the store
                       setSelectedProperty(value);
@@ -239,7 +278,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                       ))}
                     </SelectContent>
                   </Select>
-                  {!selectedProperty && (
+                  {!currentPropertyId && (
                     <p className="text-sm text-red-600">Please select a property to continue</p>
                   )}
                 </div>
@@ -282,7 +321,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                     <RoomAutocomplete
                       selectedRoom={selectedRoom}
                       onRoomSelect={handleRoomSelect}
-                      propertyId={selectedProperty || undefined}
+                      propertyId={currentPropertyId || undefined}
                     />
                   </div>
 
