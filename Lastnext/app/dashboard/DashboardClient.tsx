@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { usePropertyStore } from '@/app/lib/stores/propertyStore';
 import { useJobStore } from '@/app/lib/stores/jobStore';
 import JobsContent from './JobsContent';
-import DashboardOverview from './DashboardOverview';
 import { Job, Property } from '@/app/lib/types';
 import { fetchJobsForProperty } from '@/app/lib/data';
 import { useToast } from '@/app/components/ui/use-toast';
@@ -12,29 +11,23 @@ import { useToast } from '@/app/components/ui/use-toast';
 interface DashboardClientProps {
   initialJobs: Job[];
   initialProperties: Property[];
-  initialSelectedProperty: string;
 }
 
 export default function DashboardClient({
   initialJobs,
-  initialProperties,
-  initialSelectedProperty
+  initialProperties
 }: DashboardClientProps) {
   const [jobs, setJobs] = useState<Job[]>(initialJobs);
   const [loading, setLoading] = useState(false);
-  const [showOverview, setShowOverview] = useState(true);
   
-  const { selectedProperty, setSelectedProperty, setUserProperties } = usePropertyStore();
+  const { selectedProperty, setUserProperties } = usePropertyStore();
   const { jobCreationCount } = useJobStore();
   const { toast } = useToast();
 
   // Initialize store with server data
   useEffect(() => {
     setUserProperties(initialProperties);
-    if (!selectedProperty) {
-      setSelectedProperty(initialSelectedProperty);
-    }
-  }, [initialProperties, initialSelectedProperty, selectedProperty, setUserProperties, setSelectedProperty]);
+  }, [initialProperties, setUserProperties]);
 
   // Refresh jobs when property changes or job is created
   useEffect(() => {
@@ -62,47 +55,19 @@ export default function DashboardClient({
 
   return (
     <div className="space-y-6">
-      {/* Dashboard Overview - collapsible */}
-      {showOverview && (
-        <DashboardOverview 
-          jobs={jobs}
-          properties={initialProperties}
-          selectedProperty={selectedProperty}
-          onClose={() => setShowOverview(false)}
-        />
+      {/* Loading indicator */}
+      {loading && (
+        <div className="flex items-center justify-center py-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
+          <span className="text-gray-600">Refreshing jobs...</span>
+        </div>
       )}
       
-      {/* Main Jobs Content */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-4 py-3 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium text-gray-900">
-              Maintenance Jobs
-            </h2>
-            <div className="flex items-center space-x-2">
-              {!showOverview && (
-                <button
-                  onClick={() => setShowOverview(true)}
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  Show Overview
-                </button>
-              )}
-              {loading && (
-                <div className="flex items-center text-sm text-gray-500">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                  Refreshing...
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        <JobsContent 
-          jobs={jobs} 
-          properties={initialProperties}
-        />
-      </div>
+      {/* Jobs Content */}
+      <JobsContent 
+        jobs={jobs} 
+        properties={initialProperties}
+      />
     </div>
   );
 }
