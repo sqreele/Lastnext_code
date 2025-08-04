@@ -52,8 +52,9 @@ const navItems = [
   { href: '/dashboard/Preventive_maintenance', label: 'PM', icon: PlusCircle },
   { href: '/dashboard/preventive-maintenance/dashboard', label: 'PM Dashboard', icon:Package },
   { href: '/dashboard/preventive-maintenance', label: 'PM List', icon:Activity },
- 
 ];
+
+
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarCollapsed, setSidebarCollapsed] = React.useState(false);
@@ -119,6 +120,12 @@ function DesktopNav({ collapsed, toggleCollapse }: {
         <nav className="grid gap-1 px-2">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
+            
+            // Debug logging for createJob item
+            if (item.label === 'Create Job') {
+              console.log('Create Job nav item:', { href: item.href, isActive, pathname });
+            }
+
             return (
               <Link
                 key={item.label}
@@ -279,6 +286,12 @@ function MobileNav() {
           <nav className="grid gap-1 px-2">
             {navItems.map((item) => {
               const isActive = pathname === item.href;
+              
+              // Debug logging for createJob item
+              if (item.label === 'Create Job') {
+                console.log('Mobile Create Job nav item:', { href: item.href, isActive, pathname });
+              }
+
               return (
                 <Link
                   key={item.label}
