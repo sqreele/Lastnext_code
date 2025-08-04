@@ -32,6 +32,7 @@ interface RoomAutocompleteProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  excludePropertyFilter?: boolean;
 }
 
 const RoomAutocomplete: React.FC<RoomAutocompleteProps> = ({
@@ -40,7 +41,8 @@ const RoomAutocomplete: React.FC<RoomAutocompleteProps> = ({
   propertyId,
   placeholder = "Select a room...",
   disabled = false,
-  className
+  className,
+  excludePropertyFilter = false
 }) => {
   const { selectedProperty } = usePropertyStore();
   const [open, setOpen] = useState(false);
@@ -50,18 +52,21 @@ const RoomAutocomplete: React.FC<RoomAutocompleteProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Use propertyId prop or fall back to selectedProperty from store
-  const effectivePropertyId = propertyId || selectedProperty;
+  const effectivePropertyId = excludePropertyFilter ? undefined : (propertyId || selectedProperty);
 
   useEffect(() => {
     const loadRooms = async () => {
-      if (!effectivePropertyId) {
+      if (!effectivePropertyId && !excludePropertyFilter) {
         setRooms([]);
         return;
       }
 
       setLoading(true);
       try {
-        const fetchedRooms = await fetchRooms(effectivePropertyId);
+        // If excludePropertyFilter is true, fetch all rooms without property filter
+        const fetchedRooms = excludePropertyFilter 
+          ? await fetchRooms() // This would need to be updated to fetch all rooms
+          : await fetchRooms(effectivePropertyId);
         setRooms(fetchedRooms);
       } catch (error) {
         console.error('Error fetching rooms:', error);
@@ -72,7 +77,7 @@ const RoomAutocomplete: React.FC<RoomAutocompleteProps> = ({
     };
 
     loadRooms();
-  }, [effectivePropertyId]);
+  }, [effectivePropertyId, excludePropertyFilter]);
 
   const handleRoomSelect = (room: Room) => {
     onRoomSelect(room);

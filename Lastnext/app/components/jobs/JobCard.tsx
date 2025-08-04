@@ -27,9 +27,10 @@ import { formatDistanceToNow, format } from 'date-fns';
 interface JobCardProps {
   job: Job;
   properties?: Property[];
+  hidePropertyInfo?: boolean;
 }
 
-export function JobCard({ job, properties = [] }: JobCardProps) {
+export function JobCard({ job, properties = [], hidePropertyInfo = false }: JobCardProps) {
   const router = useRouter();
   const { selectedProperty } = usePropertyStore();
   const [selectedImage, setSelectedImage] = useState<number>(0);
@@ -154,12 +155,14 @@ export function JobCard({ job, properties = [] }: JobCardProps) {
             <CardTitle className="text-base font-semibold text-gray-900 truncate">
               {job.topics?.[0]?.title || 'No Topic'}
             </CardTitle>
-            <div className="flex items-center gap-1 text-xs text-gray-600">
-              <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
-              <span className="truncate max-w-full">
-                {getRoomName()} - {getPropertyName()}
-              </span>
-            </div>
+            {!hidePropertyInfo && (
+              <div className="flex items-center gap-1 text-xs text-gray-600">
+                <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                <span className="truncate max-w-full">
+                  {getRoomName()} - {getPropertyName()}
+                </span>
+              </div>
+            )}
           </div>
           <Badge 
             variant="secondary"

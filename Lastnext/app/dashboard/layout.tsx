@@ -49,6 +49,8 @@ const navItems = [
   { href: '/dashboard/chartdashboad', label: 'Analytics', icon: LineChart },
   { href: '/dashboard/profile', label: 'Profile', icon: Users2 },
   { href: '/dashboard/createJob', label: 'Create Job', icon: PlusCircle },
+  { href: '/dashboard/createJobNoProperty', label: 'Create Job (No Property)', icon: PlusCircle },
+  { href: '/dashboard/jobsNoProperty', label: 'Jobs (No Property)', icon: ShoppingCart },
   { href: '/dashboard/Preventive_maintenance', label: 'PM', icon: PlusCircle },
   { href: '/dashboard/preventive-maintenance/dashboard', label: 'PM Dashboard', icon:Package },
   { href: '/dashboard/preventive-maintenance', label: 'PM List', icon:Activity },

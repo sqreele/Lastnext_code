@@ -14,13 +14,15 @@ interface JobListProps {
   showFilters?: boolean;
   showPagination?: boolean;
   maxJobs?: number;
+  hidePropertyInfo?: boolean;
 }
 
 const JobList: React.FC<JobListProps> = ({
   initialJobs = [],
   showFilters = true,
   showPagination = true,
-  maxJobs = 50
+  maxJobs = 50,
+  hidePropertyInfo = false
 }) => {
   const { selectedProperty } = usePropertyStore();
   const [jobs, setJobs] = useState<Job[]>(initialJobs);
@@ -37,12 +39,19 @@ const JobList: React.FC<JobListProps> = ({
     is_preventivemaintenance: null
   });
 
-  // Fetch jobs when property changes
+  // Fetch jobs when property changes (only if not hiding property info)
   useEffect(() => {
     const loadJobs = async () => {
-      if (!selectedProperty) {
+      if (!selectedProperty && !hidePropertyInfo) {
         setJobs([]);
         setFilteredJobs([]);
+        return;
+      }
+
+      // If hiding property info, use initial jobs
+      if (hidePropertyInfo) {
+        setJobs(initialJobs);
+        setFilteredJobs(initialJobs);
         return;
       }
 
@@ -64,7 +73,7 @@ const JobList: React.FC<JobListProps> = ({
     };
 
     loadJobs();
-  }, [selectedProperty]);
+  }, [selectedProperty, hidePropertyInfo, initialJobs]);
 
   // Apply filters
   useEffect(() => {
@@ -159,7 +168,7 @@ const JobList: React.FC<JobListProps> = ({
     );
   }
 
-  if (!selectedProperty) {
+  if (!selectedProperty && !hidePropertyInfo) {
     return (
       <div className="text-center py-8">
         <p className="text-gray-600">Please select a property to view jobs.</p>
@@ -170,7 +179,9 @@ const JobList: React.FC<JobListProps> = ({
   if (filteredJobs.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-gray-600">No jobs found for this property.</p>
+        <p className="text-gray-600">
+          {hidePropertyInfo ? "No jobs found." : "No jobs found for this property."}
+        </p>
       </div>
     );
   }
@@ -187,7 +198,7 @@ const JobList: React.FC<JobListProps> = ({
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {currentJobs.slice(0, maxJobs).map((job) => (
-          <JobCard key={job.job_id} job={job} />
+          <JobCard key={job.job_id} job={job} hidePropertyInfo={hidePropertyInfo} />
         ))}
       </div>
 
