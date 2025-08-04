@@ -22,6 +22,7 @@ import TopicAutocomplete from './TopicAutocomplete';
 import FileUpload from './FileUpload';
 
 interface CreateJobFormProps {
+  propertyId?: string;
   onSuccess?: (job: Job) => void;
   onCancel?: () => void;
   initialData?: Partial<Job>;
@@ -29,6 +30,7 @@ interface CreateJobFormProps {
 }
 
 const CreateJobForm: React.FC<CreateJobFormProps> = ({
+  propertyId,
   onSuccess,
   onCancel,
   initialData = {},
@@ -58,7 +60,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [topics, setTopics] = useState<TopicFromAPI[]>([]);
 
-  // Load initial data
+  // Load initial data and set property
   useEffect(() => {
     if (initialData.images) {
       // Convert JobImage[] to string[]
@@ -67,7 +69,12 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       );
       setImageUrls(urls);
     }
-  }, [initialData]);
+    
+    // Set the property if propertyId is provided
+    if (propertyId && !selectedProperty) {
+      setSelectedProperty(propertyId);
+    }
+  }, [initialData, propertyId, selectedProperty, setSelectedProperty]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -105,15 +112,17 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
         description: "Job description is required",
         variant: "destructive"
       });
+      setActiveTab('basic'); // Navigate to basic tab
       return false;
     }
 
-    if (!selectedProperty) {
+    if (!selectedProperty && !propertyId) {
       toast({
         title: "Validation Error",
-        description: "Please select a property",
+        description: "Please select a property to create a maintenance job",
         variant: "destructive"
       });
+      setActiveTab('basic'); // Navigate to basic tab
       return false;
     }
 
@@ -131,7 +140,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       // Prepare job data first (without images)
       const jobData = {
         ...formData,
-        property_id: selectedProperty || undefined,
+        property_id: selectedProperty || propertyId || undefined,
         room_id: selectedRoom?.room_id,
         topic_id: selectedTopic?.id,
         estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : null
@@ -222,11 +231,12 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                 <div className="space-y-2">
                   <Label htmlFor="property">Property *</Label>
                   <Select 
-                    value={selectedProperty || ''} 
+                    value={selectedProperty || propertyId || ''} 
                     onValueChange={(value) => {
                       // Update the selected property in the store
                       setSelectedProperty(value);
                     }}
+                    disabled={!!propertyId}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select a property" />
@@ -239,7 +249,10 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                       ))}
                     </SelectContent>
                   </Select>
-                  {!selectedProperty && (
+                  {propertyId && (
+                    <p className="text-sm text-green-600">Property pre-selected for this maintenance job</p>
+                  )}
+                  {!selectedProperty && !propertyId && (
                     <p className="text-sm text-red-600">Please select a property to continue</p>
                   )}
                 </div>
@@ -282,7 +295,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                     <RoomAutocomplete
                       selectedRoom={selectedRoom}
                       onRoomSelect={handleRoomSelect}
-                      propertyId={selectedProperty || undefined}
+                      propertyId={selectedProperty || propertyId || undefined}
                     />
                   </div>
 
