@@ -15,7 +15,7 @@ import { Loader2, Upload, X, Plus, Trash2, Edit3, Camera, FileText, AlertCircle 
 import { usePropertyStore } from '@/app/lib/stores/propertyStore';
 import { useJobStore } from '@/app/lib/stores/jobStore';
 import { Job, Property, Room, Topic, JobImage, TopicFromAPI } from '@/app/lib/types';
-import { createJob } from '@/app/lib/data';
+import { createJob, fetchTopics } from '@/app/lib/data';
 import { cn } from '@/app/lib/utils';
 import RoomAutocomplete from './RoomAutocomplete';
 import TopicAutocomplete from './TopicAutocomplete';
@@ -59,6 +59,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [topics, setTopics] = useState<TopicFromAPI[]>([]);
+  const [loadingTopics, setLoadingTopics] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -70,6 +71,28 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       setImageUrls(urls);
     }
   }, [initialData]);
+
+  // Fetch topics when component mounts
+  useEffect(() => {
+    const loadTopics = async () => {
+      setLoadingTopics(true);
+      try {
+        const fetchedTopics = await fetchTopics();
+        setTopics(fetchedTopics);
+      } catch (error) {
+        console.error('Error loading topics:', error);
+        toast({
+          title: "Warning",
+          description: "Failed to load topics. You can still create a job without selecting a topic.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingTopics(false);
+      }
+    };
+
+    loadTopics();
+  }, [toast]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -290,11 +313,18 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
 
                   <div className="space-y-2">
                     <Label>Topic</Label>
-                    <TopicAutocomplete
-                      topics={topics}
-                      selectedTopic={selectedTopic ? { title: selectedTopic.title, description: selectedTopic.description || '' } : { title: '', description: '' }}
-                      onSelect={handleTopicSelect}
-                    />
+                    {loadingTopics ? (
+                      <div className="w-full h-12 px-4 py-3 bg-gray-50 border border-gray-300 rounded-md flex items-center">
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <span className="text-gray-500">Loading topics...</span>
+                      </div>
+                    ) : (
+                      <TopicAutocomplete
+                        topics={topics}
+                        selectedTopic={selectedTopic ? { title: selectedTopic.title, description: selectedTopic.description || '' } : { title: '', description: '' }}
+                        onSelect={handleTopicSelect}
+                      />
+                    )}
                   </div>
                 </div>
               </TabsContent>
