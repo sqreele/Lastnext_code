@@ -22,6 +22,7 @@ import TopicAutocomplete from './TopicAutocomplete';
 import FileUpload from './FileUpload';
 
 interface CreateJobFormProps {
+  propertyId: string;
   onSuccess?: (job: Job) => void;
   onCancel?: () => void;
   initialData?: Partial<Job>;
@@ -29,6 +30,7 @@ interface CreateJobFormProps {
 }
 
 const CreateJobForm: React.FC<CreateJobFormProps> = ({
+  
   onSuccess,
   onCancel,
   initialData = {},
