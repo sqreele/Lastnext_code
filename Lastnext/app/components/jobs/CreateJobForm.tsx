@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { useToast } from '@/app/components/ui/use-toast';
-import { Loader2, Upload, X, Plus, Trash2, Edit3, Camera, FileText, AlertCircle } from 'lucide-react';
+import { Loader2, Upload, X, Plus, Trash2, Edit3, Camera, FileText, AlertCircle, Building, CheckCircle } from 'lucide-react';
 import { usePropertyStore } from '@/app/lib/stores/propertyStore';
 import { useJobStore } from '@/app/lib/stores/jobStore';
 import { Job, Property, Room, Topic, JobImage, TopicFromAPI } from '@/app/lib/types';
@@ -26,17 +26,19 @@ interface CreateJobFormProps {
   onCancel?: () => void;
   initialData?: Partial<Job>;
   isEdit?: boolean;
+  propertyId?: string;
 }
 
 const CreateJobForm: React.FC<CreateJobFormProps> = ({
   onSuccess,
   onCancel,
   initialData = {},
-  isEdit = false
+  isEdit = false,
+  propertyId
 }) => {
   const router = useRouter();
   const { toast } = useToast();
-  const { selectedProperty, userProperties, setSelectedProperty } = usePropertyStore();
+  const { selectedProperty, userProperties, setSelectedProperty, hasProperties } = usePropertyStore();
   const { triggerJobCreation } = useJobStore();
 
   // Form state
@@ -58,6 +60,13 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [topics, setTopics] = useState<TopicFromAPI[]>([]);
 
+  // Set property if provided via props
+  useEffect(() => {
+    if (propertyId && propertyId !== selectedProperty) {
+      setSelectedProperty(propertyId);
+    }
+  }, [propertyId, selectedProperty, setSelectedProperty]);
+
   // Load initial data
   useEffect(() => {
     if (initialData.images) {
@@ -68,6 +77,13 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       setImageUrls(urls);
     }
   }, [initialData]);
+
+  // Get current property name for display
+  const currentPropertyName = React.useMemo(() => {
+    if (!selectedProperty) return null;
+    const property = userProperties.find(p => p.property_id === selectedProperty);
+    return property?.name || `Property ${selectedProperty}`;
+  }, [selectedProperty, userProperties]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -110,8 +126,8 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
 
     if (!selectedProperty) {
       toast({
-        title: "Validation Error",
-        description: "Please select a property",
+        title: "Property Required",
+        description: "Please select a property to create a maintenance job",
         variant: "destructive"
       });
       return false;
@@ -193,17 +209,137 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
     { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800' }
   ];
 
+  // Show property selection requirement if no properties or no property selected
+  if (!hasProperties) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building className="w-5 h-5 text-yellow-600" />
+              No Properties Available
+            </CardTitle>
+            <CardDescription>
+              You need to have at least one property to create maintenance jobs
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <Building className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Properties Found</h3>
+              <p className="text-gray-600 mb-6">
+                You need to be assigned to at least one property before you can create maintenance jobs.
+              </p>
+              <Button onClick={() => router.push('/dashboard')} variant="outline">
+                Return to Dashboard
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!selectedProperty) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building className="w-5 h-5 text-blue-600" />
+              Select Property
+            </CardTitle>
+            <CardDescription>
+              Please select a property first to create a maintenance job
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div className="text-center py-6">
+                <Building className="w-16 h-16 text-blue-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Choose Your Property</h3>
+                <p className="text-gray-600 mb-6">
+                  Select the property where you want to create the maintenance job.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="property-selection">Available Properties</Label>
+                <Select 
+                  value={selectedProperty || ''} 
+                  onValueChange={(value) => {
+                    setSelectedProperty(value);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Choose a property..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userProperties.map((property) => (
+                      <SelectItem key={property.property_id} value={property.property_id}>
+                        <div className="flex items-center gap-2">
+                          <Building className="w-4 h-4" />
+                          {property.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-between">
+                {onCancel && (
+                  <Button type="button" variant="outline" onClick={onCancel}>
+                    Cancel
+                  </Button>
+                )}
+                <Button 
+                  onClick={() => {
+                    if (userProperties.length === 1) {
+                      setSelectedProperty(userProperties[0].property_id);
+                    }
+                  }}
+                  disabled={!selectedProperty}
+                  className="ml-auto"
+                >
+                  Continue to Job Creation
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Edit3 className="w-5 h-5" />
-            {isEdit ? 'Edit Job' : 'Create New Job'}
+            {isEdit ? 'Edit Job' : 'Create New Maintenance Job'}
           </CardTitle>
           <CardDescription>
             {isEdit ? 'Update job details and information' : 'Fill in the details to create a new maintenance job'}
           </CardDescription>
+          {currentPropertyName && (
+            <div className="flex items-center gap-2 mt-2 p-2 bg-green-50 rounded-md border border-green-200">
+              <CheckCircle className="w-4 h-4 text-green-600" />
+              <span className="text-sm text-green-800">
+                Creating job for: <strong>{currentPropertyName}</strong>
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedProperty(null)}
+                className="ml-auto text-green-700 hover:text-green-900"
+              >
+                Change Property
+              </Button>
+            </div>
+          )}
         </CardHeader>
 
         <CardContent>
@@ -218,32 +354,6 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
 
               {/* Basic Information Tab */}
               <TabsContent value="basic" className="space-y-4">
-                {/* Property Selection */}
-                <div className="space-y-2">
-                  <Label htmlFor="property">Property *</Label>
-                  <Select 
-                    value={selectedProperty || ''} 
-                    onValueChange={(value) => {
-                      // Update the selected property in the store
-                      setSelectedProperty(value);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a property" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userProperties.map((property) => (
-                        <SelectItem key={property.property_id} value={property.property_id}>
-                          {property.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!selectedProperty && (
-                    <p className="text-sm text-red-600">Please select a property to continue</p>
-                  )}
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="description">Job Description *</Label>

@@ -6,12 +6,11 @@ import CreateJobForm from '@/app/components/jobs/CreateJobForm';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { useUser } from '@/app/lib/user-context'; // If you have this
+import { Loader2 } from 'lucide-react';
 
 export default function CreateJobPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { userProfile } = useUser(); // If available
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -21,8 +20,11 @@ export default function CreateJobPage() {
 
   if (status === 'loading') {
     return (
-      <div className="flex items-center justify-center p-4">
-        <div className="text-gray-500">Loading...</div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center gap-3">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+          <span className="text-gray-600">Loading...</span>
+        </div>
       </div>
     );
   }
@@ -31,33 +33,36 @@ export default function CreateJobPage() {
     return null;
   }
 
-  // If you have a default property or active property in your user context
-  const activePropertyId = userProfile?.activePropertyId || userProfile?.properties?.[0]?.id;
-
   return (
-    <div className="space-y-4 p-4 sm:p-8 w-full max-w-2xl mx-auto">
-      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-        Create New Maintenance Job
-      </h1>
-      <p className="text-sm sm:text-base text-muted-foreground">
-        Fill out the form below to add a new job.
-      </p>
+    <div className="space-y-4 p-4 sm:p-8 w-full max-w-6xl mx-auto">
+      <div className="space-y-2">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+          Create New Maintenance Job
+        </h1>
+        <p className="text-sm sm:text-base text-muted-foreground">
+          Fill out the form below to add a new job.
+        </p>
+      </div>
       
-      {activePropertyId ? (
-        <Suspense fallback={
-          <div className="flex items-center justify-center p-4 text-sm sm:text-base text-gray-500">
-            Loading form...
+      <Suspense fallback={
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            <span className="text-gray-600 text-sm sm:text-base">Loading form...</span>
           </div>
-        }>
-          <CreateJobForm propertyId={activePropertyId} />
-        </Suspense>
-      ) : (
-        <div className="p-4 border rounded-lg bg-yellow-50 border-yellow-200">
-          <p className="text-yellow-800">
-            Please select a property first to create a maintenance job.
-          </p>
         </div>
-      )}
+      }>
+        <CreateJobForm 
+          onSuccess={(job) => {
+            // Navigate to the newly created job
+            router.push(`/dashboard/jobs/${job.job_id}`);
+          }}
+          onCancel={() => {
+            // Navigate back to dashboard or jobs list
+            router.push('/dashboard');
+          }}
+        />
+      </Suspense>
     </div>
   );
 }
