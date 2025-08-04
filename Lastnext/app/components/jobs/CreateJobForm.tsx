@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { useToast } from '@/app/components/ui/use-toast';
-import { Loader2, Upload, X, Plus, Trash2, Edit3, Camera, FileText, AlertCircle } from 'lucide-react';
+import { Loader2, Upload, X, Plus, Trash2, Edit3, Camera, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { usePropertyStore } from '@/app/lib/stores/propertyStore';
 import { useJobStore } from '@/app/lib/stores/jobStore';
 import { Job, Property, Room, Topic, JobImage, TopicFromAPI } from '@/app/lib/types';
@@ -26,13 +26,15 @@ interface CreateJobFormProps {
   onCancel?: () => void;
   initialData?: Partial<Job>;
   isEdit?: boolean;
+  propertyId?: string;
 }
 
 const CreateJobForm: React.FC<CreateJobFormProps> = ({
   onSuccess,
   onCancel,
   initialData = {},
-  isEdit = false
+  isEdit = false,
+  propertyId
 }) => {
   const router = useRouter();
   const { toast } = useToast();
@@ -68,6 +70,13 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       setImageUrls(urls);
     }
   }, [initialData]);
+
+  // Set property if provided via prop
+  useEffect(() => {
+    if (propertyId && propertyId !== selectedProperty) {
+      setSelectedProperty(propertyId);
+    }
+  }, [propertyId, selectedProperty, setSelectedProperty]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -227,9 +236,10 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                       // Update the selected property in the store
                       setSelectedProperty(value);
                     }}
+                    disabled={!!propertyId}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a property" />
+                    <SelectTrigger className={propertyId ? "bg-gray-50" : ""}>
+                      <SelectValue placeholder={propertyId ? "Property pre-selected" : "Select a property"} />
                     </SelectTrigger>
                     <SelectContent>
                       {userProperties.map((property) => (
@@ -239,7 +249,13 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                       ))}
                     </SelectContent>
                   </Select>
-                  {!selectedProperty && (
+                  {propertyId && (
+                    <p className="text-sm text-blue-600 flex items-center gap-1">
+                      <CheckCircle className="w-4 h-4" />
+                      Property pre-selected for this job
+                    </p>
+                  )}
+                  {!selectedProperty && !propertyId && (
                     <p className="text-sm text-red-600">Please select a property to continue</p>
                   )}
                 </div>
