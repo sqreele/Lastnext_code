@@ -26,18 +26,23 @@ interface CreateJobFormProps {
   onCancel?: () => void;
   initialData?: Partial<Job>;
   isEdit?: boolean;
+  propertyId?: string; // Keep for backward compatibility but make optional
 }
 
 const CreateJobForm: React.FC<CreateJobFormProps> = ({
   onSuccess,
   onCancel,
   initialData = {},
-  isEdit = false
+  isEdit = false,
+  propertyId // This is now optional
 }) => {
   const router = useRouter();
   const { toast } = useToast();
   const { selectedProperty, userProperties, setSelectedProperty } = usePropertyStore();
   const { triggerJobCreation } = useJobStore();
+  
+  // Use selectedProperty from store or fall back to propertyId prop
+  const currentPropertyId = selectedProperty || propertyId;
 
   // Form state
   const [formData, setFormData] = useState({
@@ -108,7 +113,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       return false;
     }
 
-    if (!selectedProperty) {
+    if (!currentPropertyId) {
       toast({
         title: "Validation Error",
         description: "Please select a property",
@@ -131,7 +136,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       // Prepare job data first (without images)
       const jobData = {
         ...formData,
-        property_id: selectedProperty || undefined,
+        property_id: currentPropertyId,
         room_id: selectedRoom?.room_id,
         topic_id: selectedTopic?.id,
         estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : null
@@ -222,7 +227,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                 <div className="space-y-2">
                   <Label htmlFor="property">Property *</Label>
                   <Select 
-                    value={selectedProperty || ''} 
+                    value={currentPropertyId || ''} 
                     onValueChange={(value) => {
                       // Update the selected property in the store
                       setSelectedProperty(value);
@@ -239,7 +244,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                       ))}
                     </SelectContent>
                   </Select>
-                  {!selectedProperty && (
+                  {!currentPropertyId && (
                     <p className="text-sm text-red-600">Please select a property to continue</p>
                   )}
                 </div>
@@ -282,7 +287,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                     <RoomAutocomplete
                       selectedRoom={selectedRoom}
                       onRoomSelect={handleRoomSelect}
-                      propertyId={selectedProperty || undefined}
+                      propertyId={currentPropertyId || undefined}
                     />
                   </div>
 
