@@ -19,7 +19,9 @@ import {
   LogOut,
   PlusCircle,
   Bell,
-  ChevronDown,Activity
+  ChevronDown,
+  Activity,
+  Building2
 } from 'lucide-react';
 import {
   Breadcrumb,
@@ -47,6 +49,7 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/dashboard/myJobs', label: 'My Jobs', icon: ShoppingCart },
   { href: '/dashboard/chartdashboad', label: 'Analytics', icon: LineChart },
+  { href: '/dashboard/properties', label: 'Properties', icon: Building2 },
   { href: '/dashboard/profile', label: 'Profile', icon: Users2 },
   { href: '/dashboard/createJob', label: 'Create Job', icon: PlusCircle },
   { href: '/dashboard/Preventive_maintenance', label: 'PM', icon: PlusCircle },
