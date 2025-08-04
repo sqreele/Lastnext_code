@@ -26,13 +26,15 @@ interface CreateJobFormProps {
   onCancel?: () => void;
   initialData?: Partial<Job>;
   isEdit?: boolean;
+  propertyId?: string;
 }
 
 const CreateJobForm: React.FC<CreateJobFormProps> = ({
   onSuccess,
   onCancel,
   initialData = {},
-  isEdit = false
+  isEdit = false,
+  propertyId
 }) => {
   const router = useRouter();
   const { toast } = useToast();
@@ -108,7 +110,8 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
       return false;
     }
 
-    if (!selectedProperty) {
+    const currentPropertyId = propertyId || selectedProperty;
+    if (!currentPropertyId) {
       toast({
         title: "Validation Error",
         description: "Please select a property",
@@ -129,9 +132,10 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
 
     try {
       // Prepare job data first (without images)
+      const currentPropertyId = propertyId || selectedProperty;
       const jobData = {
         ...formData,
-        property_id: selectedProperty || undefined,
+        property_id: currentPropertyId || undefined,
         room_id: selectedRoom?.room_id,
         topic_id: selectedTopic?.id,
         estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : null
@@ -218,31 +222,46 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
 
               {/* Basic Information Tab */}
               <TabsContent value="basic" className="space-y-4">
-                {/* Property Selection */}
-                <div className="space-y-2">
-                  <Label htmlFor="property">Property *</Label>
-                  <Select 
-                    value={selectedProperty || ''} 
-                    onValueChange={(value) => {
-                      // Update the selected property in the store
-                      setSelectedProperty(value);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a property" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userProperties.map((property) => (
-                        <SelectItem key={property.property_id} value={property.property_id}>
-                          {property.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!selectedProperty && (
-                    <p className="text-sm text-red-600">Please select a property to continue</p>
-                  )}
-                </div>
+                {/* Property Selection - Only show if propertyId is not provided */}
+                {!propertyId && (
+                  <div className="space-y-2">
+                    <Label htmlFor="property">Property *</Label>
+                    <Select 
+                      value={selectedProperty || ''} 
+                      onValueChange={(value) => {
+                        // Update the selected property in the store
+                        setSelectedProperty(value);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a property" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userProperties.map((property) => (
+                          <SelectItem key={property.property_id} value={property.property_id}>
+                            {property.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!selectedProperty && (
+                      <p className="text-sm text-red-600">Please select a property to continue</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Show selected property info when propertyId is provided */}
+                {propertyId && (
+                  <div className="space-y-2">
+                    <Label>Property</Label>
+                    <div className="p-3 bg-gray-50 border rounded-md">
+                      <p className="font-medium text-gray-900">
+                        {userProperties.find(p => p.property_id === propertyId)?.name || 'Unknown Property'}
+                      </p>
+                      <p className="text-sm text-gray-600">Property ID: {propertyId}</p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -282,7 +301,7 @@ const CreateJobForm: React.FC<CreateJobFormProps> = ({
                     <RoomAutocomplete
                       selectedRoom={selectedRoom}
                       onRoomSelect={handleRoomSelect}
-                      propertyId={selectedProperty || undefined}
+                      propertyId={propertyId || selectedProperty || undefined}
                     />
                   </div>
 
