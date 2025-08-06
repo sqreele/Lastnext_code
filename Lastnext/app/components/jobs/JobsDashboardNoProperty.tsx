@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import JobList from "@/app/components/jobs/jobList";
-import { Job, Property, TabValue } from "@/app/lib/types";
+import { Job, TabValue } from "@/app/lib/types";
 import {
   Inbox, Clock, PlayCircle, CheckCircle2, XCircle,
   AlertTriangle, Filter, ChevronDown, Wrench,
@@ -14,16 +14,14 @@ import {
 } from "@/app/components/ui/dropdown-menu";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
-import { usePropertyStore } from "@/app/lib/stores/propertyStore";
 
-interface JobsContentProps {
+interface JobsDashboardNoPropertyProps {
   jobs: Job[];
-  properties: Property[];
 }
 
 // Update the Job type or extend it here if necessary
 interface ExtendedJob extends Job {
-  is_preventive_maintenance?: boolean; // Added the property with correct naming convention
+  is_preventive_maintenance?: boolean;
 }
 
 const tabConfig = [
@@ -36,23 +34,24 @@ const tabConfig = [
   { value: "preventive_maintenance", label: "Maintenance", icon: Wrench },
 ] as const;
 
-export default function JobsContent({ jobs, properties }: JobsContentProps) {
+export default function JobsDashboardNoProperty({ jobs }: JobsDashboardNoPropertyProps) {
   const [currentTab, setCurrentTab] = useState<TabValue>("all");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const { selectedProperty } = usePropertyStore();
 
   const filteredJobs = useMemo(() => {
     if (!Array.isArray(jobs)) return [];
     
-    let filtered = jobs as ExtendedJob[]; // Cast to the extended type
+    let filtered = jobs as ExtendedJob[];
     
-    if (selectedProperty) {
-      filtered = filtered.filter(job => 
-        job.profile_image?.properties?.some(
-          prop => String(prop.property_id) === selectedProperty
-        )
-      );
-    }
+    // Filter out jobs that have property associations
+    filtered = filtered.filter(job => {
+      // Check if job has no property_id or properties
+      const hasNoPropertyId = !job.property_id;
+      const hasNoProperties = !job.properties || job.properties.length === 0;
+      const hasNoProfileImageProperties = !job.profile_image?.properties || job.profile_image.properties.length === 0;
+      
+      return hasNoPropertyId && hasNoProperties && hasNoProfileImageProperties;
+    });
     
     switch (currentTab) {
       case 'pending':
@@ -66,12 +65,11 @@ export default function JobsContent({ jobs, properties }: JobsContentProps) {
       case 'defect':
         return filtered.filter(job => job.is_defective);
       case 'preventive_maintenance':
-        // Updated property name with standard naming convention and added null check
         return filtered.filter(job => job.is_preventive_maintenance === true);
       default:
         return filtered;
     }
-  }, [jobs, currentTab, selectedProperty]);
+  }, [jobs, currentTab]);
 
   const sortedJobs = useMemo(() => {
     return [...filteredJobs].sort((a, b) => 
@@ -86,6 +84,11 @@ export default function JobsContent({ jobs, properties }: JobsContentProps) {
 
   return (
     <div className="w-full p-4 bg-white text-gray-800">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Jobs Dashboard (No Property)</h1>
+        <p className="text-gray-600">View and manage jobs that are not associated with any property</p>
+      </div>
+
       <Tabs
         defaultValue="all"
         className="w-full"
@@ -159,6 +162,7 @@ export default function JobsContent({ jobs, properties }: JobsContentProps) {
               showFilters={false}
               showPagination={true}
               maxJobs={50}
+              hidePropertyInfo={true}
             />
           </TabsContent>
         ))}

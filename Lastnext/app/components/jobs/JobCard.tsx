@@ -8,28 +8,38 @@ import { LazyImage } from "@/app/components/jobs/LazyImage";
 import { 
   Clock, Calendar, User, MapPin, MessageSquare, CheckCircle2, 
   AlertCircle, ClipboardList, StickyNote, AlertTriangle, 
-  ChevronDown, ChevronUp 
+  ChevronDown, ChevronUp, MoreHorizontal, Edit, Trash2, Eye
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { useRouter } from "next/navigation";
-import { useProperty } from "@/app/lib/PropertyContext";
+import { usePropertyStore } from "@/app/lib/stores/propertyStore";
+import Link from 'next/link';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/app/components/ui/dropdown-menu';
+import { formatDistanceToNow, format } from 'date-fns';
 
 interface JobCardProps {
   job: Job;
   properties?: Property[];
+  hidePropertyInfo?: boolean;
 }
 
-export function JobCard({ job, properties = [] }: JobCardProps) {
+export function JobCard({ job, properties = [], hidePropertyInfo = false }: JobCardProps) {
   const router = useRouter();
-  const { selectedProperty } = useProperty();
+  const { selectedProperty } = usePropertyStore();
   const [selectedImage, setSelectedImage] = useState<number>(0);
   const [expandedSections, setExpandedSections] = useState({
     details: false,
     timestamps: false,
     remarks: false,
   });
+  const [isImageLoading, setIsImageLoading] = useState(false);
 
   const toggleSection = useCallback((section: keyof typeof expandedSections, e: MouseEvent) => {
     e.stopPropagation();
@@ -95,16 +105,19 @@ export function JobCard({ job, properties = [] }: JobCardProps) {
 
   const formatDate = useCallback((dateString: string) => {
     try {
-      return new Date(dateString).toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'Invalid date';
+      const date = new Date(dateString);
+      return formatDistanceToNow(date, { addSuffix: true });
+    } catch {
+      return 'Unknown date';
+    }
+  }, []);
+
+  const formatDateExact = useCallback((dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return format(date, 'MMM dd, yyyy');
+    } catch {
+      return 'Unknown date';
     }
   }, []);
 
@@ -123,6 +136,14 @@ export function JobCard({ job, properties = [] }: JobCardProps) {
     router.push(`/dashboard/jobs/${job.job_id}`);
   }, [job.job_id, router]);
 
+  const getRoomName = () => {
+    if (job.rooms && job.rooms.length > 0) {
+      const room = job.rooms[0];
+      return typeof room === 'string' ? room : room.name || 'Unknown Room';
+    }
+    return 'No room assigned';
+  };
+
   return (
     <Card 
       className="w-full max-w-md mx-auto flex flex-col transition-all duration-200 bg-white shadow hover:shadow-md cursor-pointer"
@@ -134,12 +155,14 @@ export function JobCard({ job, properties = [] }: JobCardProps) {
             <CardTitle className="text-base font-semibold text-gray-900 truncate">
               {job.topics?.[0]?.title || 'No Topic'}
             </CardTitle>
-            <div className="flex items-center gap-1 text-xs text-gray-600">
-              <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
-              <span className="truncate max-w-full">
-                {job.rooms?.[0]?.name || 'N/A'} - {getPropertyName()}
-              </span>
-            </div>
+            {!hidePropertyInfo && (
+              <div className="flex items-center gap-1 text-xs text-gray-600">
+                <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                <span className="truncate max-w-full">
+                  {getRoomName()} - {getPropertyName()}
+                </span>
+              </div>
+            )}
           </div>
           <Badge 
             variant="secondary"
@@ -148,6 +171,31 @@ export function JobCard({ job, properties = [] }: JobCardProps) {
             {statusConfig.icon}
             <span>{statusConfig.label}</span>
           </Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/jobs/${job.job_id}`}>
+                  <Eye className="w-4 h-4 mr-2" />
+                  View Details
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/jobs/${job.job_id}/edit`}>
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Job
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-red-600">
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Job
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
 
@@ -159,7 +207,12 @@ export function JobCard({ job, properties = [] }: JobCardProps) {
                 src={job.images[selectedImage]?.image_url}
                 alt={`Job Image ${selectedImage + 1}`}
                 className="w-full h-full object-cover rounded-md"
+                onLoad={() => setIsImageLoading(false)}
+                onError={() => setIsImageLoading(false)}
               />
+              {isImageLoading && (
+                <div className="absolute inset-0 bg-gray-200 animate-pulse rounded-md" />
+              )}
             </div>
             {job.images.length > 1 && (
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">

@@ -41,6 +41,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/app/components/ui/dropdown-menu';
+import { useSessionSync } from '@/app/lib/hooks/useSessionSync';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
@@ -48,6 +49,8 @@ const navItems = [
   { href: '/dashboard/chartdashboad', label: 'Analytics', icon: LineChart },
   { href: '/dashboard/profile', label: 'Profile', icon: Users2 },
   { href: '/dashboard/createJob', label: 'Create Job', icon: PlusCircle },
+  { href: '/dashboard/createJobNoProperty', label: 'Create Job (No Property)', icon: PlusCircle },
+  { href: '/dashboard/jobsNoProperty', label: 'Jobs (No Property)', icon: ShoppingCart },
   { href: '/dashboard/Preventive_maintenance', label: 'PM', icon: PlusCircle },
   { href: '/dashboard/preventive-maintenance/dashboard', label: 'PM Dashboard', icon:Package },
   { href: '/dashboard/preventive-maintenance', label: 'PM List', icon:Activity },
@@ -56,6 +59,9 @@ const navItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+  
+  // Sync session data with Zustand stores
+  useSessionSync();
 
   return (
     <div className="flex min-h-screen w-full bg-gradient-to-br from-gray-50 to-gray-100 text-gray-800">
@@ -66,7 +72,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex flex-1 flex-col">
         <MobileHeader />
         <DesktopHeader sidebarCollapsed={isSidebarCollapsed} />
-        <main className="flex-1 p-3 sm:p-4 lg:p-6 overflow-auto transition-colors">
+        <main className="flex-1 p-2 sm:p-3 md:p-4 lg:p-6 overflow-auto transition-colors">
           <div className="mx-auto w-full max-w-7xl">{children}</div>
         </main>
       </div>
@@ -178,27 +184,27 @@ function DesktopNav({ collapsed, toggleCollapse }: {
 function MobileHeader() {
   return (
     <header className="lg:hidden sticky top-0 z-50 border-b shadow-sm bg-white/95 backdrop-blur-sm border-gray-200">
-      <div className="flex items-center justify-between h-16 px-4">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between h-14 sm:h-16 px-3 sm:px-4">
+        <div className="flex items-center gap-2 sm:gap-3">
           <MobileNav />
           <Link href="/dashboard" className="flex items-center gap-2">
-            <Package2 className="h-6 w-6 text-blue-600" />
-            <span className="font-semibold text-gray-800">PMCS</span>
+            <Package2 className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+            <span className="font-semibold text-gray-800 text-sm sm:text-base">PMCS</span>
           </Link>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="h-9 w-9">
-            <Bell className="h-5 w-5" />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9">
+            <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
           <MobileSearch />
         </div>
       </div>
       
-      <div className="flex items-center px-4 py-2 border-t border-gray-100">
+      <div className="flex items-center px-3 sm:px-4 py-2 border-t border-gray-100">
         <HeaderPropertyList />
       </div>
       
-      <div className="px-4 py-2 border-t border-gray-100 overflow-x-auto scrollbar-none">
+      <div className="px-3 sm:px-4 py-2 border-t border-gray-100 overflow-x-auto scrollbar-none">
         <MobileBreadcrumb />
       </div>
     </header>
@@ -249,19 +255,19 @@ function MobileNav() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-9">
-          <Menu className="h-5 w-5 text-gray-600" />
+        <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9">
+          <Menu className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
           <span className="sr-only">Menu</span>
         </Button>
       </SheetTrigger>
       <SheetContent 
         side="left" 
-        className="w-[280px] p-0 border-r flex flex-col bg-white"
+        className="w-[280px] sm:w-[320px] p-0 border-r flex flex-col bg-white"
       >
         <div className="p-4 border-b border-gray-200">
-          <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-            <Package2 className="h-5 w-5 text-blue-600" />
-            <span className="font-semibold text-gray-800">PMCS Admin</span>
+          <Link href="/dashboard" className="flex items-center gap-3" onClick={() => setOpen(false)}>
+            <Package2 className="h-6 w-6 text-blue-600" />
+            <span className="font-semibold text-gray-800 text-lg">PMCS Admin</span>
           </Link>
         </div>
         
@@ -281,14 +287,14 @@ function MobileNav() {
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-all duration-200 ease-in-out',
+                    'flex items-center gap-3 rounded-lg px-4 py-3 text-sm transition-all duration-200 ease-in-out touch-manipulation',
                     isActive
                       ? 'bg-blue-600 text-white'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   )}
                 >
-                  <item.icon className="h-5 w-5" />
-                  {item.label}
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  <span className="font-medium">{item.label}</span>
                 </Link>
               );
             })}
@@ -298,13 +304,13 @@ function MobileNav() {
         <div className="mt-auto p-4 border-t border-gray-200">
           <Button 
             variant="outline" 
-            className="w-full justify-start gap-2 text-sm h-10 bg-white text-red-500 border-gray-300 hover:bg-red-50" 
+            className="w-full justify-start gap-3 text-sm h-12 bg-white text-red-500 border-gray-300 hover:bg-red-50" 
             onClick={() => {
               setOpen(false);
               signOut({ callbackUrl: '/auth/signin' });
             }}
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-5 w-5" />
             Logout
           </Button>
         </div>
@@ -378,38 +384,38 @@ function MobileSearch() {
         <Button 
           variant="ghost" 
           size="icon" 
-          className="h-9 w-9" 
+          className="h-8 w-8 sm:h-9 sm:w-9" 
           onClick={() => setIsOpen(true)}
         >
-          <Search className="h-5 w-5 text-gray-600" />
+          <Search className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
           <span className="sr-only">Search</span>
         </Button>
       ) : (
-        <div className="fixed inset-0 z-50 p-4 flex flex-col bg-white/95">
-          <div className="flex items-center gap-2 mb-4">
+        <div className="fixed inset-0 z-50 p-3 sm:p-4 flex flex-col bg-white/95 backdrop-blur-sm">
+          <div className="flex items-center gap-3 mb-4">
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-9 w-9" 
+              className="h-10 w-10" 
               onClick={() => setIsOpen(false)}
             >
               <PanelLeft className="h-5 w-5 text-gray-600" />
             </Button>
-            <span className="font-medium text-gray-800">Search</span>
+            <span className="font-medium text-gray-800 text-lg">Search</span>
           </div>
           
           <form action={searchAction} className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500" />
             <Input
               name="q"
               type="search"
               placeholder="Search jobs, properties..."
               autoFocus
-              className="w-full pl-9 h-10 text-sm rounded-full bg-gray-100 border-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-12 pr-4 h-12 text-base rounded-xl bg-gray-100 border-none focus:ring-2 focus:ring-blue-500"
             />
             {isPending && (
-              <div className="absolute right-3 top-3">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+              <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
               </div>
             )}
           </form>

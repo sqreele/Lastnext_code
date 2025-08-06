@@ -6,9 +6,17 @@ interface LazyImageProps {
   src: string;
   alt: string;
   className?: string;
+  onLoad?: () => void;
+  onError?: () => void;
 }
 
-export const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className }) => {
+export const LazyImage: React.FC<LazyImageProps> = ({ 
+  src, 
+  alt, 
+  className, 
+  onLoad, 
+  onError 
+}) => {
   // Check if this is a URL from our own domain
   const isOwnDomain = src.includes('pmcs.site');
   
@@ -23,7 +31,8 @@ export const LazyImage: React.FC<LazyImageProps> = ({ src, alt, className }) => 
       style={{ width: '100%', height: 'auto' }} // Responsive
       loading="lazy"
       unoptimized={isOwnDomain} // Skip optimization for our own domain
-      onError={() => console.error(`Failed to load image: ${src}`)} // Debug
+      onLoad={onLoad}
+      onError={onError || (() => console.error(`Failed to load image: ${src}`))} // Debug
     />
   );
 };

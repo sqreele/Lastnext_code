@@ -1,242 +1,216 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useProperty } from '@/app/lib/PropertyContext';
-import { JobCard } from '@/app/components/jobs/JobCard';
-import Pagination from '@/app/components/jobs/Pagination';
-import JobActions from '@/app/components/jobs/JobActions';
-import { Job, TabValue, Property, SortOrder } from '@/app/lib/types';
+import React, { useState, useEffect } from 'react';
+import { usePropertyStore } from '@/app/lib/stores/propertyStore';
+import { Job, JobStatus, JobPriority } from '@/app/lib/types';
+import { fetchJobsForProperty } from '@/app/lib/data';
+import { JobCard } from './JobCard';
+import JobFilters, { FilterState } from './JobFilters';
+import Pagination from './Pagination';
 import { Loader2 } from 'lucide-react';
-import {
-  startOfDay, endOfDay, subDays,
-  startOfWeek, endOfWeek, startOfMonth, endOfMonth,
-  isWithinInterval
-} from 'date-fns';
-
-type DateFilter = "all" | "today" | "yesterday" | "thisWeek" | "thisMonth" | "custom";
 
 interface JobListProps {
-  jobs: Job[];
-  filter: TabValue;
-  properties: Property[];
+  initialJobs?: Job[];
+  showFilters?: boolean;
+  showPagination?: boolean;
+  maxJobs?: number;
+  hidePropertyInfo?: boolean;
 }
 
-export default function JobList({ jobs, filter, properties }: JobListProps) {
-  const [currentPage, setCurrentPage] = useState(1);
+const JobList: React.FC<JobListProps> = ({
+  initialJobs = [],
+  showFilters = true,
+  showPagination = true,
+  maxJobs = 50,
+  hidePropertyInfo = false
+}) => {
+  const { selectedProperty } = usePropertyStore();
+  const [jobs, setJobs] = useState<Job[]>(initialJobs);
+  const [filteredJobs, setFilteredJobs] = useState<Job[]>(initialJobs);
   const [isLoading, setIsLoading] = useState(false);
-  const [sortOrder, setSortOrder] = useState<SortOrder>("Newest first");
-  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
-  const [customDateRange, setCustomDateRange] = useState<{ start?: Date, end?: Date }>({});
-  const { selectedProperty } = useProperty();
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [jobsPerPage] = useState(10);
+  const [filters, setFilters] = useState<FilterState>({
+    search: '',
+    status: 'all',
+    priority: 'all',
+    dateRange: undefined,
+    is_preventivemaintenance: null
+  });
 
-  const [itemsPerPage, setItemsPerPage] = useState(getInitialItemsPerPage());
-
-  function getInitialItemsPerPage() {
-    if (typeof window === 'undefined') return 10;
-    const width = window.innerWidth;
-    if (width < 640) return 6;
-    if (width < 1024) return 8;
-    return 15;
-  }
-
+  // Fetch jobs when property changes (only if not hiding property info)
   useEffect(() => {
-    const handleResize = () => {
-      setItemsPerPage(getInitialItemsPerPage());
+    const loadJobs = async () => {
+      if (!selectedProperty && !hidePropertyInfo) {
+        setJobs([]);
+        setFilteredJobs([]);
+        return;
+      }
+
+      // If hiding property info, use initial jobs
+      if (hidePropertyInfo) {
+        setJobs(initialJobs);
+        setFilteredJobs(initialJobs);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const fetchedJobs = await fetchJobsForProperty(selectedProperty);
+        setJobs(fetchedJobs);
+        setFilteredJobs(fetchedJobs);
+      } catch (err) {
+        console.error('Error fetching jobs:', err);
+        setError('Failed to load jobs');
+        setJobs([]);
+        setFilteredJobs([]);
+      } finally {
+        setIsLoading(false);
+      }
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
+    loadJobs();
+  }, [selectedProperty, hidePropertyInfo, initialJobs]);
+
+  // Apply filters
   useEffect(() => {
-    setCurrentPage(1);
-  }, [filter, sortOrder, selectedProperty, dateFilter]);
+    let filtered = [...jobs];
 
-  useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => setIsLoading(false), 300);
-    return () => clearTimeout(timer);
-  }, [filter, sortOrder, selectedProperty, dateFilter]);
-
-  const handleDateFilterChange = (
-    filterType: DateFilter,
-    startDate?: Date,
-    endDate?: Date
-  ) => {
-    setIsLoading(true);
-    setDateFilter(filterType);
-    if (filterType === "custom" && startDate && endDate) {
-      setCustomDateRange({ start: startDate, end: endDate });
+    // Filter by status
+    if (filters.status !== 'all') {
+      filtered = filtered.filter(job => job.status === filters.status);
     }
-    setTimeout(() => setIsLoading(false), 300);
-  };
 
-  const applyDateFilter = (job: Job): boolean => {
-    const jobDate = job.created_at ? new Date(job.created_at) : null;
-    if (!jobDate) return true;
+    // Filter by priority
+    if (filters.priority !== 'all') {
+      filtered = filtered.filter(job => job.priority === filters.priority);
+    }
 
-    const now = new Date();
+    // Filter by search
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(job =>
+        job.description?.toLowerCase().includes(searchLower) ||
+        job.job_id?.toLowerCase().includes(searchLower)
+      );
+    }
 
-    switch (dateFilter) {
-      case "today":
-        return isWithinInterval(jobDate, { start: startOfDay(now), end: endOfDay(now) });
-      case "yesterday":
-        const yesterday = subDays(now, 1);
-        return isWithinInterval(jobDate, { start: startOfDay(yesterday), end: endOfDay(yesterday) });
-      case "thisWeek":
-        return isWithinInterval(jobDate, { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) });
-      case "thisMonth":
-        return isWithinInterval(jobDate, { start: startOfMonth(now), end: endOfMonth(now) });
-      case "custom":
-        if (customDateRange.start && customDateRange.end) {
-          return isWithinInterval(jobDate, {
-            start: startOfDay(customDateRange.start),
-            end: endOfDay(customDateRange.end)
-          });
+    // Filter by date range
+    if (filters.dateRange?.from || filters.dateRange?.to) {
+      filtered = filtered.filter(job => {
+        const jobDate = new Date(job.created_at);
+        const fromDate = filters.dateRange?.from;
+        const toDate = filters.dateRange?.to;
+        
+        if (fromDate && toDate) {
+          return jobDate >= fromDate && jobDate <= toDate;
+        } else if (fromDate) {
+          return jobDate >= fromDate;
+        } else if (toDate) {
+          return jobDate <= toDate;
         }
         return true;
-      default:
-        return true;
+      });
     }
+
+    // Filter by preventive maintenance
+    if (filters.is_preventivemaintenance !== null) {
+      filtered = filtered.filter(job => job.is_preventivemaintenance === filters.is_preventivemaintenance);
+    }
+
+    setFilteredJobs(filtered);
+    setCurrentPage(1); // Reset to first page when filtering
+  }, [jobs, filters]);
+
+  const handleFilterChange = (newFilters: FilterState) => {
+    setFilters(newFilters);
   };
 
-  const filteredJobs = jobs.filter(job => {
-    const matchesProperty = !selectedProperty ||
-      job.profile_image?.properties?.some(p => String(p.property_id) === selectedProperty) ||
-      job.rooms?.some(r => r.properties?.some(prop => String(prop) === selectedProperty));
-    if (!matchesProperty) return false;
-
-    let matchesStatus = true;
-    switch (filter) {
-      case 'waiting_sparepart':
-        matchesStatus = ['in_progress', 'waiting_sparepart'].includes(job.status);
-        break;
-      case 'pending':
-        matchesStatus = job.status === 'pending';
-        break;
-      case 'completed':
-        matchesStatus = job.status === 'completed';
-        break;
-      case 'cancelled':
-        matchesStatus = job.status === 'cancelled';
-        break;
-      case 'defect':
-        matchesStatus = job.is_defective === true;
-        break;
-    }
-    if (!matchesStatus) return false;
-
-    return applyDateFilter(job);
-  });
-
-  const sortedJobs = [...filteredJobs].sort((a, b) => {
-    const dateA = new Date(a.created_at || '').getTime();
-    const dateB = new Date(b.created_at || '').getTime();
-    return sortOrder === "Newest first" ? dateB - dateA : dateA - dateB;
-  });
-
-  const totalPages = Math.ceil(sortedJobs.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentJobs = sortedJobs.slice(startIndex, endIndex);
-
-  const handlePageChange = (page: number) => {
-    setIsLoading(true);
-    setCurrentPage(page);
-    window.scrollTo({
-      top: document.querySelector('.job-grid-container')?.getBoundingClientRect().top
-        ? window.scrollY + (document.querySelector('.job-grid-container')?.getBoundingClientRect().top || 0) - 80
-        : 0,
-      behavior: 'smooth'
+  const handleClearFilters = () => {
+    setFilters({
+      search: '',
+      status: 'all',
+      priority: 'all',
+      dateRange: undefined,
+      is_preventivemaintenance: null
     });
-    setTimeout(() => setIsLoading(false), 300);
   };
 
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 300);
-  };
+  // Pagination
+  const indexOfLastJob = currentPage * jobsPerPage;
+  const indexOfFirstJob = indexOfLastJob - jobsPerPage;
+  const currentJobs = filteredJobs.slice(indexOfFirstJob, indexOfLastJob);
+  const totalPages = Math.ceil(filteredJobs.length / jobsPerPage);
 
-  if (sortedJobs.length === 0 && !isLoading) {
+  if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="flex justify-end mb-2">
-          <JobActions
-            jobs={jobs}
-            currentTab={filter}
-            properties={properties}
-            onRefresh={handleRefresh}
-            onSort={(order) => setSortOrder(order)}
-            currentSort={sortOrder}
-            onDateFilter={handleDateFilterChange}
-            currentDateFilter={dateFilter}
-          />
-        </div>
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <span className="ml-2 text-gray-600">Loading jobs...</span>
+      </div>
+    );
+  }
 
-        <div className="flex flex-col items-center justify-center min-h-[200px] p-4 text-center bg-white rounded-lg shadow-sm">
-          <p className="text-base font-medium text-gray-600 mb-2">
-            No jobs found
-          </p>
-          <p className="text-sm text-gray-500">
-            {selectedProperty
-              ? `No jobs match your current filters`
-              : 'No property selected.'}
-          </p>
-        </div>
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600 mb-4">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  if (!selectedProperty && !hidePropertyInfo) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-600">Please select a property to view jobs.</p>
+      </div>
+    );
+  }
+
+  if (filteredJobs.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-600">
+          {hidePropertyInfo ? "No jobs found." : "No jobs found for this property."}
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end mb-2">
-        <JobActions
-          jobs={sortedJobs}
-          currentTab={filter}
-          properties={properties}
-          onRefresh={handleRefresh}
-          onSort={(order) => setSortOrder(order)}
-          currentSort={sortOrder}
-          onDateFilter={handleDateFilterChange}
-          currentDateFilter={dateFilter}
+    <div className="space-y-6">
+      {showFilters && (
+        <JobFilters
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onClearFilters={handleClearFilters}
         />
-      </div>
-
-      <div className="text-sm text-gray-500 mb-2">
-        Showing {Math.min(currentJobs.length, itemsPerPage)} of {sortedJobs.length} results
-      </div>
-
-      {isLoading ? (
-        <div className="flex items-center justify-center min-h-[200px] bg-white rounded-lg shadow-sm">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-        </div>
-      ) : (
-        <div className="job-grid-container mb-10">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
-            {currentJobs.map((job) => (
-              <div key={job.job_id} className="h-full">
-                <div className="h-full touch-action-manipulation">
-                  <JobCard job={job} properties={properties} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
 
-      {totalPages > 1 && (
-        <div className="mt-8 px-4 flex justify-center items-center">
-          <div className="bg-white rounded-lg shadow-sm p-2 touch-action-manipulation">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-            />
-          </div>
-        </div>
-      )}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {currentJobs.slice(0, maxJobs).map((job) => (
+          <JobCard key={job.job_id} job={job} hidePropertyInfo={hidePropertyInfo} />
+        ))}
+      </div>
 
-      {/* Extra space at bottom to avoid overlap */}
-      <div className="h-24 md:h-8" />
+      {showPagination && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
+      )}
     </div>
   );
-}
+};
+
+export default JobList;
