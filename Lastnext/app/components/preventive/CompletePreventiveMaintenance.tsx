@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { usePreventiveMaintenance, PreventiveMaintenanceCompleteRequest } from '@/app/lib/PreventiveContext';
+import { usePreventiveMaintenanceStore } from '@/app/lib/stores/preventiveMaintenanceStore';
 import { MaintenanceImage } from '@/app/lib/preventiveMaintenanceModels';
 import React from 'react';
 import { 
@@ -33,6 +33,11 @@ interface AvailableRecord {
   status?: string;
 }
 
+type PreventiveMaintenanceCompleteRequest = {
+  completion_notes: string;
+  after_image?: File;
+};
+
 export default function CompletePreventiveMaintenance({ params }: CompletePreventiveMaintenanceProps) {
   const router = useRouter();
   const pmId = params?.id;
@@ -52,7 +57,7 @@ export default function CompletePreventiveMaintenance({ params }: CompletePreven
     fetchMaintenanceItems,
     completeMaintenance,
     clearError
-  } = usePreventiveMaintenance();
+  } = usePreventiveMaintenanceStore();
 
   // Local state
   const [completionData, setCompletionData] = useState<PreventiveMaintenanceCompleteRequest>({
