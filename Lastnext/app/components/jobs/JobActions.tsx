@@ -8,7 +8,7 @@ import CreateJobButton from "@/app/components/jobs/CreateJobButton";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import JobsPDFDocument from "@/app/components/ducument/JobsPDFGenerator";
-import { useProperty } from "@/app/lib/PropertyContext";
+import { usePropertyStore } from "@/app/lib/stores/propertyStore";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,10 +22,7 @@ import { format } from "date-fns";
 
 type DateFilter = "all" | "today" | "yesterday" | "thisWeek" | "thisMonth" | "custom";
 
-interface PropertyContextType {
-  selectedProperty: string | null;
-  setSelectedProperty: (propertyId: string | null) => void;
-}
+type Topic = { id: string; title: string }; // Adjust fields as needed
 
 interface JobActionsProps {
   onSort?: (order: SortOrder) => void;
@@ -37,8 +34,6 @@ interface JobActionsProps {
   currentTab?: TabValue;
   properties?: Property[];
 }
-
-type Topic = { id: string; title: string }; // Adjust fields as needed
 
 export default function JobActions({
   onSort,
@@ -52,7 +47,7 @@ export default function JobActions({
 }: JobActionsProps) {
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
-  const { selectedProperty, setSelectedProperty } = useProperty() as PropertyContextType;
+  const { selectedProperty, setSelectedProperty, userProperties } = usePropertyStore();
 
   const getDateFilterLabel = (filter: DateFilter) => {
     switch (filter) {
@@ -71,7 +66,7 @@ export default function JobActions({
 
   const getPropertyName = (propertyId: string | null) => {
     if (!propertyId) return "All Properties";
-    const property = properties.find((p) => p.property_id === propertyId);
+    const property = userProperties.find((p) => p.property_id === propertyId);
     return property?.name || "Unknown Property";
   };
 
@@ -98,7 +93,8 @@ export default function JobActions({
       setIsGenerating(true);
       const propertyName = getPropertyName(selectedProperty);
 
-      const topics: Topic[] = [ /* ...array of topics... */ ];
+      // Get topics from your data source or API
+      const topics: Topic[] = []; // This should be fetched from your API
       const onTopicChange = (topicId: string) => {
         // handle topic change (if needed for PDF)
       };
@@ -158,11 +154,6 @@ export default function JobActions({
   const dropdownContentClass = "w-[200px] bg-zinc-950 border-zinc-800 rounded-lg shadow-lg";
   const buttonClass = "flex items-center gap-2 text-sm h-9";
 
-  const topics: Topic[] = [ /* ...array of topics... */ ];
-  const onTopicChange = (topicId: string) => {
-    // handle topic change (if needed for PDF)
-  };
-
   return (
     <div className="flex items-center gap-2">
       {/* Desktop Actions */}
@@ -180,7 +171,7 @@ export default function JobActions({
               <Building className="h-4 w-4" />
               All Properties
             </DropdownMenuItem>
-            {properties.map((property) => (
+            {userProperties.map((property) => (
               <DropdownMenuItem
                 key={property.property_id}
                 onClick={() => setSelectedProperty(property.property_id)}
@@ -269,7 +260,7 @@ export default function JobActions({
             <DropdownMenuItem onClick={() => setSelectedProperty(null)} className={menuItemClass}>
               <Building className="h-4 w-4" /> All Properties
             </DropdownMenuItem>
-            {properties.map((property) => (
+            {userProperties.map((property) => (
               <DropdownMenuItem
                 key={property.property_id}
                 onClick={() => setSelectedProperty(property.property_id)}

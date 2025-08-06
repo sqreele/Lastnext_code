@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { usePreventiveMaintenance } from '@/app/lib/PreventiveContext';
+import { usePreventiveMaintenanceStore } from '@/app/lib/stores/preventiveMaintenanceStore';
 import { PreventiveMaintenance, FrequencyType } from '@/app/lib/preventiveMaintenanceModels';
 import { UpdatePreventiveMaintenanceData } from '@/app/lib/PreventiveMaintenanceService';
 import { 
@@ -55,7 +55,7 @@ export default function EditPreventiveMaintenancePage() {
     isLoading,
     error: contextError,
     clearError
-  } = usePreventiveMaintenance();
+  } = usePreventiveMaintenanceStore();
 
   // State
   const [maintenance, setMaintenance] = useState<PreventiveMaintenance | null>(null);

@@ -1,46 +1,34 @@
 // /app/dashboard/createJob/page.tsx
+'use client';
+
 import { Suspense } from 'react';
-import { Metadata } from 'next';
 import CreateJobForm from '@/app/components/jobs/CreateJobForm';
-import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/lib/auth'; // Correct path to your authOptions
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { usePropertyStore } from '@/app/lib/stores/propertyStore';
 
-export const dynamic = 'force-dynamic';
+export default function CreateJobPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const { userProperties, hasProperties } = usePropertyStore();
 
-export const metadata: Metadata = {
-  title: 'Create Job - Maintenance & Job Management Dashboard',
-  description: 'Create a new maintenance job effortlessly. Assign tasks, set priorities, and upload images with our intuitive form.',
-  keywords: ['create job', 'maintenance task', 'job management', 'property maintenance', 'dashboard'],
-  openGraph: {
-    title: 'Create Job - Maintenance & Job Management Dashboard',
-    description: 'Add new maintenance tasks with ease using our Next.js-powered form.',
-    url: 'https://pmcs.site/dashboard/createJob',
-    type: 'website',
-    images: [
-      {
-        url: 'https://pmcs.site/og-create-job.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'Create Job Page Preview',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Create Job - Maintenance & Job Management Dashboard',
-    description: 'Effortlessly create maintenance jobs with our intuitive tool.',
-    images: ['https://pmcs.site/twitter-create-job.jpg'],
-  },
-};
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin');
+    }
+  }, [status, router]);
 
-export default async function CreateJobPage() {
-  // Server-side session check
-  const session = await getServerSession(authOptions);
-  console.log('Server session:', session); // Debug log
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
 
-  if (!session) {
-    redirect('/auth/signin');
+  if (status === 'unauthenticated') {
+    return null;
   }
 
   return (
@@ -51,9 +39,25 @@ export default async function CreateJobPage() {
       <p className="text-sm sm:text-base text-muted-foreground">
         Fill out the form below to add a new job.
       </p>
-      <Suspense fallback={<div className="flex items-center justify-center p-4 text-sm sm:text-base text-gray-500">Loading form...</div>}>
-        <CreateJobForm />
-      </Suspense>
+      
+      {hasProperties ? (
+        <Suspense fallback={
+          <div className="flex items-center justify-center p-4 text-sm sm:text-base text-gray-500">
+            Loading form...
+          </div>
+        }>
+          <CreateJobForm />
+        </Suspense>
+      ) : (
+        <div className="p-4 border rounded-lg bg-yellow-50 border-yellow-200">
+          <p className="text-yellow-800">
+            Please select a property first to create a maintenance job.
+          </p>
+          <p className="text-sm text-yellow-700 mt-2">
+            You need to have access to at least one property to create maintenance jobs.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
