@@ -83,11 +83,19 @@ export interface UserContextType {
 
 export type JobStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'waiting_sparepart';
 export type JobPriority = 'low' | 'medium' | 'high';
+export type MaintenanceType = 'corrective' | 'preventive' | 'emergency';
+export type RecurrencePattern = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 export interface JobImage {
   id: number;
   image_url: string;
   uploaded_by?: number | string | User | null;
+  uploaded_at: string;
+}
+
+export interface MaintenanceJobImage {
+  id: number;
+  image_url: string;
   uploaded_at: string;
 }
 
@@ -134,6 +142,41 @@ export interface Job {
   is_defective?: boolean;
   image_urls?: string[];
   is_preventivemaintenance?: boolean;
+}
+
+export interface MaintenanceJob {
+  id: string;
+  job_id: string;
+  title: string;
+  description: string;
+  maintenance_type: MaintenanceType;
+  status: JobStatus;
+  priority: JobPriority;
+  assigned_to?: string | null;
+  estimated_hours?: number | null;
+  actual_hours?: number | null;
+  scheduled_date?: string | null;
+  due_date?: string | null;
+  completion_date?: string | null;
+  cost_estimate?: number | null;
+  actual_cost?: number | null;
+  parts_required?: string | null;
+  tools_required?: string | null;
+  safety_notes?: string | null;
+  remarks?: string | null;
+  is_recurring: boolean;
+  recurrence_pattern?: RecurrencePattern | null;
+  created_at: string;
+  updated_at: string;
+  user_id: string;
+  property_id: string;
+  room_id?: string | null;
+  topic_id?: string | null;
+  user?: User;
+  property?: Property;
+  room?: Room;
+  topic?: Topic;
+  images?: MaintenanceJobImage[];
 }
 
 export interface Property {

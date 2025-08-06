@@ -122,12 +122,12 @@ export const searchJobs = async (
 
     // Add other filters if they exist
     if (filters.user) params.user = filters.user;
-if (filters.priority) params.priority = filters.priority;
-if (filters.topic) params.topic = filters.topic.toString(); // Assuming filter state has topic ID
-if (filters.room) params.room = filters.room.toString();    // Assuming filter state has room ID
-if (filters.dateRange?.from) params.date_from = filters.dateRange.from.toISOString().split('T')[0];
-if (filters.dateRange?.to) params.date_to = filters.dateRange.to.toISOString().split('T')[0];
-if (filters.search) params.search = filters.search;
+    if (filters.priority) params.priority = filters.priority;
+    if (filters.topic) params.topic = filters.topic.toString(); // Ensure topic filter is included
+    if (filters.room) params.room = filters.room.toString();    // Assuming filter state has room ID
+    if (filters.dateRange?.from) params.date_from = filters.dateRange.from.toISOString().split('T')[0];
+    if (filters.dateRange?.to) params.date_to = filters.dateRange.to.toISOString().split('T')[0];
+    if (filters.search) params.search = filters.search;
 
     const queryString = new URLSearchParams(params).toString();
     // Define expected response structure for type safety
@@ -278,6 +278,158 @@ export const fetchPreventiveMaintenanceJobs = async (options?: {
     return response ?? [];
   } catch (error) {
     throw handleApiError(error);
+  }
+};
+
+export const createMaintenanceJob = async (maintenanceJobData: any) => {
+  try {
+    const token = await getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/maintenance-jobs/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(maintenanceJobData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error creating maintenance job:', error);
+    throw error;
+  }
+};
+
+export const fetchMaintenanceJobs = async (options?: {
+  property_id?: string;
+  status?: string;
+  maintenance_type?: string;
+  page?: number;
+  search?: string;
+}) => {
+  try {
+    const token = await getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+
+    const queryParams = new URLSearchParams();
+    if (options?.property_id) queryParams.append('property_id', options.property_id);
+    if (options?.status) queryParams.append('status', options.status);
+    if (options?.maintenance_type) queryParams.append('maintenance_type', options.maintenance_type);
+    if (options?.page) queryParams.append('page', options.page.toString());
+    if (options?.search) queryParams.append('search', options.search);
+
+    const url = `${API_BASE_URL}/maintenance-jobs/?${queryParams.toString()}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error fetching maintenance jobs:', error);
+    throw error;
+  }
+};
+
+export const fetchMaintenanceJobById = async (jobId: string) => {
+  try {
+    const token = await getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/maintenance-jobs/${jobId}/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error fetching maintenance job:', error);
+    throw error;
+  }
+};
+
+export const updateMaintenanceJob = async (jobId: string, maintenanceJobData: any) => {
+  try {
+    const token = await getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/maintenance-jobs/${jobId}/`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(maintenanceJobData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error updating maintenance job:', error);
+    throw error;
+  }
+};
+
+export const deleteMaintenanceJob = async (jobId: string) => {
+  try {
+    const token = await getAuthToken();
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/maintenance-jobs/${jobId}/`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting maintenance job:', error);
+    throw error;
   }
 };
 

@@ -1,7 +1,7 @@
 // app/lib/auth-helpers.ts
 
 import { jwtDecode } from "jwt-decode";
-import { Topic } from "@/app/lib/types"; // Adjust the path as needed
+import axios from "axios";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -44,8 +44,3 @@ export async function refreshAccessToken(refreshToken: string) {
     };
   }
 }
-
-const topics: Topic[] = [ /* ...array ของหัวข้อ... */ ];
-const onTopicChange = (topicId: string) => {
-  // อัปเดต filter state หรือ fetch ข้อมูลใหม่
-};

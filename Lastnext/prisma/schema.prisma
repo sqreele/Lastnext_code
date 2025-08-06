@@ -20,6 +20,8 @@ model User {
   accounts   Account[]
   sessions   Session[]
   properties UserProperty[] // New relation table for many-to-many properties
+  jobs       Job[]
+  maintenanceJobs MaintenanceJob[]
 }
 
 model Property {
@@ -28,6 +30,113 @@ model Property {
   description String?
   created_at  DateTime   @default(now())
   users       UserProperty[]
+  rooms       Room[]
+  jobs        Job[]
+  maintenanceJobs MaintenanceJob[]
+}
+
+model Room {
+  id          String     @id @default(uuid())
+  name        String
+  room_type   String     @default("General")
+  property_id String
+  is_active   Boolean    @default(true)
+  created_at  DateTime   @default(now())
+  property    Property   @relation(fields: [property_id], references: [id], onDelete: Cascade)
+  jobs        Job[]
+  maintenanceJobs MaintenanceJob[]
+}
+
+model Topic {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  created_at  DateTime   @default(now())
+  jobs        Job[]
+  maintenanceJobs MaintenanceJob[]
+}
+
+model Job {
+  id          String     @id @default(uuid())
+  job_id      String     @unique @default(uuid())
+  description String
+  status      String     @default("pending") // pending, in_progress, completed, cancelled, waiting_sparepart
+  priority    String     @default("medium")  // low, medium, high
+  assigned_to String?
+  estimated_hours Float?
+  actual_hours    Float?
+  is_defective    Boolean @default(false)
+  remarks      String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  completed_at DateTime?
+  user_id      String
+  property_id  String?
+  room_id      String?
+  topic_id     String?
+  
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  property     Property? @relation(fields: [property_id], references: [id], onDelete: SetNull)
+  room         Room?     @relation(fields: [room_id], references: [id], onDelete: SetNull)
+  topic        Topic?    @relation(fields: [topic_id], references: [id], onDelete: SetNull)
+  images       JobImage[]
+}
+
+model MaintenanceJob {
+  id                 String     @id @default(uuid())
+  job_id             String     @unique @default(uuid())
+  title              String
+  description        String
+  maintenance_type   String     @default("corrective") // corrective, preventive, emergency
+  status             String     @default("pending")    // pending, in_progress, completed, cancelled
+  priority           String     @default("medium")     // low, medium, high
+  assigned_to        String?
+  estimated_hours    Float?
+  actual_hours       Float?
+  scheduled_date     DateTime?
+  due_date           DateTime?
+  completion_date    DateTime?
+  cost_estimate      Float?
+  actual_cost        Float?
+  parts_required     String?
+  tools_required     String?
+  safety_notes       String?
+  remarks            String?
+  is_recurring       Boolean    @default(false)
+  recurrence_pattern String?    // weekly, monthly, quarterly, yearly
+  created_at         DateTime   @default(now())
+  updated_at         DateTime   @updatedAt
+  user_id            String
+  property_id        String
+  room_id            String?
+  topic_id           String?
+  
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  property    Property  @relation(fields: [property_id], references: [id], onDelete: Cascade)
+  room        Room?     @relation(fields: [room_id], references: [id], onDelete: SetNull)
+  topic       Topic?    @relation(fields: [topic_id], references: [id], onDelete: SetNull)
+  images      MaintenanceJobImage[]
+  
+  @@index([property_id])
+  @@index([status])
+  @@index([maintenance_type])
+  @@index([scheduled_date])
+}
+
+model JobImage {
+  id          String   @id @default(uuid())
+  image_url   String
+  uploaded_at DateTime @default(now())
+  job_id      String
+  job         Job      @relation(fields: [job_id], references: [id], onDelete: Cascade)
+}
+
+model MaintenanceJobImage {
+  id          String         @id @default(uuid())
+  image_url   String
+  uploaded_at DateTime       @default(now())
+  job_id      String
+  job         MaintenanceJob @relation(fields: [job_id], references: [id], onDelete: Cascade)
 }
 
 model UserProperty {  // Join table for User <-> Property many-to-many relation
