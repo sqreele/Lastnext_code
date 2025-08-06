@@ -20,6 +20,13 @@ model User {
   accounts   Account[]
   sessions   Session[]
   properties UserProperty[] // New relation table for many-to-many properties
+  
+  // Maintenance job relations
+  createdJobs     MaintenanceJob[] @relation("CreatedJobs")
+  updatedJobs     MaintenanceJob[] @relation("UpdatedJobs")
+  completedJobs   MaintenanceJob[] @relation("CompletedJobs")
+  uploadedImages  JobImage[]
+  uploadedFiles   JobAttachment[]
 }
 
 model Property {
@@ -28,6 +35,7 @@ model Property {
   description String?
   created_at  DateTime   @default(now())
   users       UserProperty[]
+  maintenanceJobs MaintenanceJob[]
 }
 
 model UserProperty {  // Join table for User <-> Property many-to-many relation
@@ -37,6 +45,68 @@ model UserProperty {  // Join table for User <-> Property many-to-many relation
   property   Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@id([userId, propertyId])  // Composite primary key
+}
+
+model MaintenanceJob {
+  id                String   @id @default(uuid())
+  job_id            String   @unique
+  description       String
+  status            String   @default("pending") // pending, in_progress, completed, cancelled, waiting_sparepart
+  priority          String   @default("medium")  // low, medium, high
+  property_id       String
+  room_id           String?
+  topic_id          String?
+  assigned_to       String?
+  estimated_hours   Float?
+  actual_hours      Float?
+  is_defective      Boolean  @default(false)
+  is_preventive     Boolean  @default(false)
+  remarks           String?
+  created_by        String
+  updated_by        String?
+  completed_by      String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  completed_at      DateTime?
+  due_date          DateTime?
+  
+  // Relations
+  property          Property @relation(fields: [property_id], references: [id], onDelete: Cascade)
+  creator           User     @relation("CreatedJobs", fields: [created_by], references: [id])
+  updater           User?    @relation("UpdatedJobs", fields: [updated_by], references: [id])
+  completer         User?    @relation("CompletedJobs", fields: [completed_by], references: [id])
+  
+  // Related entities
+  images            JobImage[]
+  attachments       JobAttachment[]
+}
+
+model JobImage {
+  id                String        @id @default(uuid())
+  maintenance_job_id String
+  image_url         String
+  description       String?
+  uploaded_by       String
+  uploaded_at       DateTime      @default(now())
+  
+  // Relations
+  job               MaintenanceJob @relation(fields: [maintenance_job_id], references: [id], onDelete: Cascade)
+  uploader          User          @relation(fields: [uploaded_by], references: [id])
+}
+
+model JobAttachment {
+  id                String        @id @default(uuid())
+  maintenance_job_id String
+  file_url          String
+  file_name         String
+  file_type         String
+  description       String?
+  uploaded_by       String
+  uploaded_at       DateTime      @default(now())
+  
+  // Relations
+  job               MaintenanceJob @relation(fields: [maintenance_job_id], references: [id], onDelete: Cascade)
+  uploader          User          @relation(fields: [uploaded_by], references: [id])
 }
 
 model Account {
