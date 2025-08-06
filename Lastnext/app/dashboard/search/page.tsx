@@ -1,6 +1,41 @@
 // app/dashboard/search/page.tsx
-import { Suspense } from 'react';
-import SearchContent from './SearchContent';
+"use client";
+
+import { Suspense, useState } from 'react';
+import SearchContent, { FilterState } from './SearchContent';
+
+// Wrapper component to manage filter state
+function SearchPageContent() {
+  const [filters, setFilters] = useState<FilterState>({
+    search: '',
+    status: 'all',
+    priority: 'all',
+    dateRange: undefined,
+    is_preventivemaintenance: null
+  });
+
+  const handleFilterChange = (newFilters: FilterState) => {
+    setFilters(newFilters);
+  };
+
+  const handleClearFilters = () => {
+    setFilters({
+      search: '',
+      status: 'all',
+      priority: 'all',
+      dateRange: undefined,
+      is_preventivemaintenance: null
+    });
+  };
+
+  return (
+    <SearchContent
+      filters={filters}
+      onFilterChange={handleFilterChange}
+      onClearFilters={handleClearFilters}
+    />
+  );
+}
 
 export default function SearchPage() {
   return (
@@ -12,7 +47,7 @@ export default function SearchPage() {
         </div>
       </div>
     }>
-      <SearchContent />
+      <SearchPageContent />
     </Suspense>
   );
 }

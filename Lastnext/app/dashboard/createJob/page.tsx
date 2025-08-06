@@ -1,59 +1,131 @@
 // /app/dashboard/createJob/page.tsx
-import { Suspense } from 'react';
-import { Metadata } from 'next';
+'use client';
+
+import { Suspense, useState } from 'react';
 import CreateJobForm from '@/app/components/jobs/CreateJobForm';
-import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/lib/auth'; // Correct path to your authOptions
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useUser } from '@/app/lib/user-context';
+import { usePropertyStore } from '@/app/lib/stores/propertyStore';
+import { Button } from '@/app/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
+import PropertySelector from '@/app/components/ui/PropertySelector';
+import { Building2, AlertCircle } from 'lucide-react';
 
-export const dynamic = 'force-dynamic';
+export default function CreateJobPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const { userProfile, loading: userLoading } = useUser();
+  const { selectedProperty, userProperties, setSelectedProperty } = usePropertyStore();
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
 
-export const metadata: Metadata = {
-  title: 'Create Job - Maintenance & Job Management Dashboard',
-  description: 'Create a new maintenance job effortlessly. Assign tasks, set priorities, and upload images with our intuitive form.',
-  keywords: ['create job', 'maintenance task', 'job management', 'property maintenance', 'dashboard'],
-  openGraph: {
-    title: 'Create Job - Maintenance & Job Management Dashboard',
-    description: 'Add new maintenance tasks with ease using our Next.js-powered form.',
-    url: 'https://pmcs.site/dashboard/createJob',
-    type: 'website',
-    images: [
-      {
-        url: 'https://pmcs.site/og-create-job.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'Create Job Page Preview',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Create Job - Maintenance & Job Management Dashboard',
-    description: 'Effortlessly create maintenance jobs with our intuitive tool.',
-    images: ['https://pmcs.site/twitter-create-job.jpg'],
-  },
-};
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin');
+    }
+  }, [status, router]);
 
-export default async function CreateJobPage() {
-  // Server-side session check
-  const session = await getServerSession(authOptions);
-  console.log('Server session:', session); // Debug log
+  useEffect(() => {
+    // Set the selected property from the store
+    if (selectedProperty) {
+      setSelectedPropertyId(selectedProperty);
+    } else if (userProperties.length > 0) {
+      // Auto-select first property if none is selected
+      setSelectedPropertyId(userProperties[0].property_id);
+      setSelectedProperty(userProperties[0].property_id);
+    }
+  }, [selectedProperty, userProperties, setSelectedProperty]);
 
-  if (!session) {
-    redirect('/auth/signin');
+  const handlePropertyChange = (propertyId: string) => {
+    setSelectedPropertyId(propertyId);
+    setSelectedProperty(propertyId);
+  };
+
+  if (status === 'loading' || userLoading) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  if (status === 'unauthenticated') {
+    return null;
   }
 
   return (
-    <div className="space-y-4 p-4 sm:p-8 w-full max-w-2xl mx-auto">
-      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-        Create New Maintenance Job
-      </h1>
-      <p className="text-sm sm:text-base text-muted-foreground">
-        Fill out the form below to add a new job.
-      </p>
-      <Suspense fallback={<div className="flex items-center justify-center p-4 text-sm sm:text-base text-gray-500">Loading form...</div>}>
-        <CreateJobForm />
-      </Suspense>
+    <div className="space-y-4 p-4 sm:p-8 w-full max-w-4xl mx-auto">
+      <div className="space-y-2">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+          Create New Maintenance Job
+        </h1>
+        <p className="text-sm sm:text-base text-muted-foreground">
+          Fill out the form below to add a new job.
+        </p>
+      </div>
+      
+      {userProperties.length === 0 ? (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-yellow-800">
+              <AlertCircle className="w-5 h-5" />
+              No Properties Available
+            </CardTitle>
+            <CardDescription className="text-yellow-700">
+              You don't have any properties assigned to your account. Please contact your administrator to get access to properties.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/dashboard')}
+              className="border-yellow-300 text-yellow-800 hover:bg-yellow-100"
+            >
+              Back to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      ) : !selectedPropertyId ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="w-5 h-5" />
+              Select Property
+            </CardTitle>
+            <CardDescription>
+              Please select a property to create a maintenance job.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <PropertySelector
+              value={selectedPropertyId}
+              onValueChange={handlePropertyChange}
+              placeholder="Select a property"
+              label="Property *"
+            />
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-blue-800">Property Selection Required</h4>
+                  <p className="text-sm text-blue-700 mt-1">
+                    You need to select a property before you can create a maintenance job. This helps organize and track jobs by location.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Suspense fallback={
+          <div className="flex items-center justify-center p-4 text-sm sm:text-base text-gray-500">
+            Loading form...
+          </div>
+        }>
+          <CreateJobForm propertyId={selectedPropertyId} />
+        </Suspense>
+      )}
     </div>
   );
 }
