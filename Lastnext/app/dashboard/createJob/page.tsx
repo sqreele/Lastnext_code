@@ -1,59 +1,98 @@
-// /app/dashboard/createJob/page.tsx
+'use client';
+
 import { Suspense } from 'react';
-import { Metadata } from 'next';
 import CreateJobForm from '@/app/components/jobs/CreateJobForm';
-import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/lib/auth'; // Correct path to your authOptions
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useUser } from '@/app/lib/user-context';
+import { usePropertyStore } from '@/app/lib/stores/propertyStore';
+import Link from 'next/link';
 
-export const dynamic = 'force-dynamic';
+export default function CreateJobPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const { userProfile } = useUser();
+  const { selectedProperty, userProperties } = usePropertyStore();
 
-export const metadata: Metadata = {
-  title: 'Create Job - Maintenance & Job Management Dashboard',
-  description: 'Create a new maintenance job effortlessly. Assign tasks, set priorities, and upload images with our intuitive form.',
-  keywords: ['create job', 'maintenance task', 'job management', 'property maintenance', 'dashboard'],
-  openGraph: {
-    title: 'Create Job - Maintenance & Job Management Dashboard',
-    description: 'Add new maintenance tasks with ease using our Next.js-powered form.',
-    url: 'https://pmcs.site/dashboard/createJob',
-    type: 'website',
-    images: [
-      {
-        url: 'https://pmcs.site/og-create-job.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'Create Job Page Preview',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Create Job - Maintenance & Job Management Dashboard',
-    description: 'Effortlessly create maintenance jobs with our intuitive tool.',
-    images: ['https://pmcs.site/twitter-create-job.jpg'],
-  },
-};
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin');
+    }
+  }, [status, router]);
 
-export default async function CreateJobPage() {
-  // Server-side session check
-  const session = await getServerSession(authOptions);
-  console.log('Server session:', session); // Debug log
-
-  if (!session) {
-    redirect('/auth/signin');
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <div className="animate-pulse text-gray-500">Loading...</div>
+      </div>
+    );
   }
+
+  if (status === 'unauthenticated') {
+    return null;
+  }
+
+  // Use selected property from store, fallback to first property
+  const activePropertyId = selectedProperty || userProperties?.[0]?.property_id;
 
   return (
     <div className="space-y-4 p-4 sm:p-8 w-full max-w-2xl mx-auto">
-      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-        Create New Maintenance Job
-      </h1>
-      <p className="text-sm sm:text-base text-muted-foreground">
-        Fill out the form below to add a new job.
-      </p>
-      <Suspense fallback={<div className="flex items-center justify-center p-4 text-sm sm:text-base text-gray-500">Loading form...</div>}>
-        <CreateJobForm />
-      </Suspense>
+      <div className="space-y-2">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+          Create New Maintenance Job
+        </h1>
+        <p className="text-sm sm:text-base text-muted-foreground">
+          Fill out the form below to add a new job.
+        </p>
+        {activePropertyId && (
+          <p className="text-xs text-gray-500">
+            Creating job for: <span className="font-medium">
+              {userProperties.find(p => p.property_id === activePropertyId)?.name}
+            </span>
+          </p>
+        )}
+      </div>
+      
+      {activePropertyId ? (
+        <Suspense fallback={
+          <div className="flex items-center justify-center p-4 text-sm sm:text-base text-gray-500">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+            Loading form...
+          </div>
+        }>
+          <CreateJobForm propertyId={activePropertyId} />
+        </Suspense>
+      ) : (
+        <div className="p-6 border rounded-lg bg-yellow-50 border-yellow-200">
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-yellow-800">Property Selection Required</h3>
+              <p className="mt-1 text-sm text-yellow-700">
+                Please select a property first to create a maintenance job. You can do this from the property selector in the header.
+              </p>
+              {userProperties.length === 0 && (
+                <p className="mt-2 text-sm text-yellow-700">
+                  No properties are available. Please contact your administrator to assign properties to your account.
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="mt-4">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center px-3 py-2 border border-yellow-300 shadow-sm text-sm leading-4 font-medium rounded-md text-yellow-700 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+            >
+              Go to Dashboard
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

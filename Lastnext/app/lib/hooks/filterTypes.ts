@@ -8,6 +8,7 @@ export interface FilterState {
     page: number;
     pageSize: number;
     machine: string; // Add machine filter
+    topic: string; // Add topic filter
   }
   
   export interface MachineOption {
