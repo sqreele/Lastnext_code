@@ -122,12 +122,12 @@ export const searchJobs = async (
 
     // Add other filters if they exist
     if (filters.user) params.user = filters.user;
-if (filters.priority) params.priority = filters.priority;
-if (filters.topic) params.topic = filters.topic.toString(); // Assuming filter state has topic ID
-if (filters.room) params.room = filters.room.toString();    // Assuming filter state has room ID
-if (filters.dateRange?.from) params.date_from = filters.dateRange.from.toISOString().split('T')[0];
-if (filters.dateRange?.to) params.date_to = filters.dateRange.to.toISOString().split('T')[0];
-if (filters.search) params.search = filters.search;
+    if (filters.priority) params.priority = filters.priority;
+    if (filters.topic) params.topic = filters.topic.toString(); // Ensure topic filter is included
+    if (filters.room) params.room = filters.room.toString();    // Assuming filter state has room ID
+    if (filters.dateRange?.from) params.date_from = filters.dateRange.from.toISOString().split('T')[0];
+    if (filters.dateRange?.to) params.date_to = filters.dateRange.to.toISOString().split('T')[0];
+    if (filters.search) params.search = filters.search;
 
     const queryString = new URLSearchParams(params).toString();
     // Define expected response structure for type safety

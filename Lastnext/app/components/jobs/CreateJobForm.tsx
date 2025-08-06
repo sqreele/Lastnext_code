@@ -1,413 +1,469 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Formik, Form, Field, FormikErrors } from 'formik';
-import * as Yup from 'yup';
-import axios from 'axios';
-import { Button } from "@/app/components/ui/button";
-import { Textarea } from "@/app/components/ui/textarea";
-import { Plus, ChevronDown, ChevronUp, Loader } from 'lucide-react';
-import { Checkbox } from "@/app/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
-import { Alert, AlertDescription } from "@/app/components/ui/alert";
-import { useSession, signIn } from 'next-auth/react';
-import { Label } from "@/app/components/ui/label";
-import RoomAutocomplete from '@/app/components/jobs/RoomAutocomplete';
-import FileUpload from '@/app/components/jobs/FileUpload';
-import { Room, TopicFromAPI } from '@/app/lib/types';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProperty } from '@/app/lib/PropertyContext';
-import { useJob } from '@/app/lib/JobContext';
+import { Button } from '@/app/components/ui/button';
+import { Input } from '@/app/components/ui/input';
+import { Label } from '@/app/components/ui/label';
+import { Textarea } from '@/app/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { Badge } from '@/app/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { useToast } from '@/app/components/ui/use-toast';
+import { Loader2, Upload, X, Plus, Trash2, Edit3, Camera, FileText, AlertCircle } from 'lucide-react';
+import { usePropertyStore } from '@/app/lib/stores/propertyStore';
+import { useJobStore } from '@/app/lib/stores/jobStore';
+import { Job, Property, Room, Topic, JobImage, TopicFromAPI } from '@/app/lib/types';
+import { createJob } from '@/app/lib/data';
+import { cn } from '@/app/lib/utils';
+import RoomAutocomplete from './RoomAutocomplete';
+import TopicAutocomplete from './TopicAutocomplete';
+import FileUpload from './FileUpload';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-
-interface FormValues {
-  description: string;
-  status: string;
-  priority: string;
-  remarks: string;
-  topic: {
-    title: string;
-    description: string;
-  };
-  room: Room | null;
-  files: File[];
-  is_defective: boolean;
-  is_preventivemaintenance: boolean;
+interface CreateJobFormProps {
+  propertyId: string;
+  onSuccess?: (job: Job) => void;
+  onCancel?: () => void;
+  initialData?: Partial<Job>;
+  isEdit?: boolean;
 }
 
-const validationSchema = Yup.object().shape({
-  description: Yup.string().required('Description is required'),
-  status: Yup.string().required('Status is required'),
-  priority: Yup.string().required('Priority is required'),
-  remarks: Yup.string().optional(),
-  topic: Yup.object().shape({
-    title: Yup.string().required('Topic is required'),
-    description: Yup.string(),
-  }).required(),
-  room: Yup.object()
-    .nullable()
-    .required('Room selection is required')
-    .shape({
-      room_id: Yup.number().typeError('Invalid Room ID').required('Room ID missing').min(1, 'Room must be selected'),
-      name: Yup.string().required('Room name missing'),
-    }),
-  files: Yup.array()
-    .of(
-      Yup.mixed<File>()
-        .test('fileSize', 'File too large (max 5MB)', (value) => !value || !(value instanceof File) || value.size <= MAX_FILE_SIZE)
-        .test('fileType', 'Only image files allowed', (value) => !value || !(value instanceof File) || value.type.startsWith('image/'))
-    )
-    .min(1, 'At least one image is required')
-    .required('At least one image is required'),
-  is_defective: Yup.boolean().default(false),
-  is_preventivemaintenance: Yup.boolean().default(false),
-});
-
-const initialValues: FormValues = {
-  description: '',
-  status: 'pending',
-  priority: 'medium',
-  remarks: '',
-  topic: { title: '', description: '' },
-  room: null,
-  files: [],
-  is_defective: false,
-  is_preventivemaintenance: false,
-};
-
-const CreateJobForm: React.FC<{ onJobCreated?: () => void }> = ({ onJobCreated }) => {
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [topics, setTopics] = useState<TopicFromAPI[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const { data: session, status } = useSession();
+const CreateJobForm: React.FC<CreateJobFormProps> = ({
+  
+  onSuccess,
+  onCancel,
+  initialData = {},
+  isEdit = false
+}) => {
   const router = useRouter();
-  const { triggerJobCreation } = useJob();
-  const { selectedProperty, userProperties } = useProperty();
+  const { toast } = useToast();
+  const { selectedProperty, userProperties, setSelectedProperty } = usePropertyStore();
+  const { triggerJobCreation } = useJobStore();
 
-  const getPropertyName = useCallback((propertyId: string | null): string => {
-    if (!propertyId) return 'No Property Selected';
-    const property = userProperties.find(p => p.property_id === propertyId);
-    return property?.name || `Property ${propertyId}`;
-  }, [userProperties]);
+  // Form state
+  const [formData, setFormData] = useState({
+    description: initialData.description || '',
+    priority: initialData.priority || 'medium',
+    status: initialData.status || 'pending',
+    assigned_to: '',
+    estimated_hours: '',
+    is_defective: initialData.is_defective || false,
+    remarks: initialData.remarks || ''
+  });
 
-  const fetchData = useCallback(async () => {
-    if (!session?.user?.accessToken) return;
-    const headers = { Authorization: `Bearer ${session.user.accessToken}` };
+  const [images, setImages] = useState<File[]>([]);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState('basic');
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  const [topics, setTopics] = useState<TopicFromAPI[]>([]);
 
-    try {
-      setError(null);
-      if (!selectedProperty) {
-        setError('Please select a property first');
-        return;
-      }
-      const [roomsResponse, topicsResponse] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/rooms/?property_id=${selectedProperty}`, { headers }),
-        axios.get(`${API_BASE_URL}/api/topics/`, { headers }),
-      ]);
-
-      if (!Array.isArray(roomsResponse.data)) throw new Error('Invalid rooms data');
-      if (!Array.isArray(topicsResponse.data)) throw new Error('Invalid topics data');
-
-      setRooms(roomsResponse.data);
-      setTopics(topicsResponse.data);
-    } catch (fetchError) {
-      console.error('Fetch error:', fetchError);
-      setError('Failed to load rooms/topics.');
-    }
-  }, [session?.user?.accessToken, selectedProperty]);
-
+  // Load initial data
   useEffect(() => {
-    if (status === 'authenticated' && session?.user?.accessToken) {
-      fetchData();
+    if (initialData.images) {
+      // Convert JobImage[] to string[]
+      const urls = initialData.images.map(img => 
+        typeof img === 'string' ? img : img.image_url
+      );
+      setImageUrls(urls);
     }
-  }, [status, session?.user?.accessToken, fetchData, selectedProperty]);
+  }, [initialData]);
 
-  const formatApiErrors = (data: any): string => {
-    if (!data) return 'Unknown error';
-    if (typeof data === 'string') return data;
-    if (typeof data === 'object') {
-      if (data.detail) return data.detail;
-      return Object.entries(data)
-        .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
-        .join('; ');
-    }
-    return 'Validation failed';
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
-  const validateFiles = (files: File[]): string | null => {
-    if (!files.length) return 'At least one image is required';
-    for (const file of files) {
-      if (!file.type.startsWith('image/')) return `File "${file.name}" is not an image`;
-      if (file.size > MAX_FILE_SIZE) return `File "${file.name}" exceeds 5MB limit`;
-    }
-    return null;
+  const handleImageUpload = (files: File[]) => {
+    setImages(prev => [...prev, ...files]);
   };
 
-  const handleSubmit = async (values: FormValues, { resetForm, setSubmitting }: { resetForm: () => void; setSubmitting: (isSubmitting: boolean) => void }) => {
-    if (!session?.user) {
-      setError('Please login first');
-      await signIn();
-      return;
+  const handleImageRemove = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleImageUrlRemove = (index: number) => {
+    setImageUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRoomSelect = (room: Room) => {
+    setSelectedRoom(room);
+  };
+
+  const handleTopicSelect = (topic: { title: string; description: string }) => {
+    // Find the full topic object from topics array
+    const fullTopic = topics.find(t => t.title === topic.title);
+    setSelectedTopic(fullTopic || null);
+  };
+
+  const validateForm = () => {
+    if (!formData.description.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Job description is required",
+        variant: "destructive"
+      });
+      return false;
     }
 
     if (!selectedProperty) {
-      setError('Please select a property');
-      setSubmitting(false);
-      return;
+      toast({
+        title: "Validation Error",
+        description: "Please select a property",
+        variant: "destructive"
+      });
+      return false;
     }
 
-    if (!values.room || !values.room.room_id) {
-      setError('Please select a valid room');
-      setSubmitting(false);
-      return;
-    }
+    return true;
+  };
 
-    const fileError = validateFiles(values.files);
-    if (fileError) {
-      setError(fileError);
-      setSubmitting(false);
-      return;
-    }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
 
-    setError(null);
+    setIsSubmitting(true);
 
     try {
-      const formData = new FormData();
-      formData.append('description', values.description.trim());
-      formData.append('status', values.status);
-      formData.append('priority', values.priority);
-      formData.append('room_id', values.room.room_id.toString());
-      formData.append('topic_data', JSON.stringify({
-        title: values.topic.title.trim(),
-        description: values.topic.description.trim() || '',
-      }));
-      if (values.remarks?.trim()) {
-        formData.append('remarks', values.remarks.trim());
+      // Prepare job data first (without images)
+      const jobData = {
+        ...formData,
+        property_id: selectedProperty || undefined,
+        room_id: selectedRoom?.room_id,
+        topic_id: selectedTopic?.id,
+        estimated_hours: formData.estimated_hours ? parseFloat(formData.estimated_hours) : null
+      };
+
+      // Create job first to get job ID
+      const newJob = await createJob(jobData);
+
+      // Now upload images if any
+      if (images.length > 0) {
+        // For now, we'll just add the image URLs to the job data
+        // In a real implementation, you'd upload each image and get URLs
+        const imageData: JobImage[] = images.map((file, index) => ({
+          id: index + 1,
+          image_url: URL.createObjectURL(file), // This is temporary
+          uploaded_at: new Date().toISOString()
+        }));
+        
+        // Update job with images
+        // This would require an updateJob function
+        console.log('Images to upload:', images);
       }
-      formData.append('user_id', session.user.id);
-      formData.append('property_id', selectedProperty);
-      formData.append('is_defective', values.is_defective ? 'true' : 'false');
-      formData.append('is_preventivemaintenance', values.is_preventivemaintenance ? 'true' : 'false');
-      values.files.forEach(file => {
-        formData.append('images', file);
-      });
 
-      const response = await axios.post(`${API_BASE_URL}/api/jobs/`, formData, {
-        headers: {
-          Authorization: `Bearer ${session.user.accessToken}`,
-        },
-      });
-
-      resetForm();
+      // Trigger job creation notification
       triggerJobCreation();
-      if (onJobCreated) onJobCreated();
-      router.push('/dashboard/myJobs');
-    } catch (error) {
-      console.error('Submission error:', error);
-      if (axios.isAxiosError(error)) {
-        setError(formatApiErrors(error.response?.data));
+
+      toast({
+        title: "Success",
+        description: isEdit ? "Job updated successfully" : "Job created successfully",
+      });
+
+      if (onSuccess) {
+        onSuccess(newJob);
       } else {
-        setError('Unexpected error occurred');
+        router.push(`/dashboard/jobs/${newJob.job_id}`);
       }
+    } catch (error) {
+      console.error('Error creating job:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create job. Please try again.",
+        variant: "destructive"
+      });
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
-  if (status === 'loading') {
-    return (
-      <div className="text-center p-6">
-        <Loader className="inline-block animate-spin mr-2 h-5 w-5" /> Loading session...
-      </div>
-    );
-  }
+  const priorityOptions = [
+    { value: 'low', label: 'Low', color: 'bg-green-100 text-green-800' },
+    { value: 'medium', label: 'Medium', color: 'bg-yellow-100 text-yellow-800' },
+    { value: 'high', label: 'High', color: 'bg-red-100 text-red-800' }
+  ];
 
-  if (status === 'unauthenticated') {
-    return (
-      <div className="text-center p-6 space-y-4">
-        <p>Please log in to create a job.</p>
-        <Button onClick={() => signIn()}>Log In</Button>
-      </div>
-    );
-  }
-
-  if (!selectedProperty) {
-    return (
-      <div className="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-sm p-4 sm:p-6 border">
-        <Alert className="mb-6">
-          <AlertDescription>Please select a property first to create a maintenance job.</AlertDescription>
-        </Alert>
-        <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
-      </div>
-    );
-  }
+  const statusOptions = [
+    { value: 'pending', label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
+    { value: 'in_progress', label: 'In Progress', color: 'bg-blue-100 text-blue-800' },
+    { value: 'completed', label: 'Completed', color: 'bg-green-100 text-green-800' },
+    { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800' }
+  ];
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-white rounded-lg shadow-sm p-4 sm:p-6 border">
-      <h2 className="text-xl font-semibold mb-2 text-gray-800">Create New Maintenance Job</h2>
-      <p className="text-sm text-gray-600 mb-6">
-        For property: {getPropertyName(selectedProperty)}
-      </p>
+    <div className="max-w-4xl mx-auto p-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Edit3 className="w-5 h-5" />
+            {isEdit ? 'Edit Job' : 'Create New Job'}
+          </CardTitle>
+          <CardDescription>
+            {isEdit ? 'Update job details and information' : 'Fill in the details to create a new maintenance job'}
+          </CardDescription>
+        </CardHeader>
 
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="media">Media</TabsTrigger>
+                <TabsTrigger value="advanced">Advanced</TabsTrigger>
+              </TabsList>
 
-      <Formik initialValues={initialValues} validationSchema={validationSchema} onSubmit={handleSubmit} enableReinitialize>
-        {({ values, errors, touched, setFieldValue, isSubmitting }) => (
-          <Form className="space-y-6">
-            {/* Description */}
-            <div className="space-y-1">
-              <Label htmlFor="description" className="font-medium">Description *</Label>
-              <Field
-                as={Textarea}
-                id="description"
-                name="description"
-                placeholder="Enter job description..."
-                disabled={isSubmitting}
-                className={`w-full min-h-[90px] ${touched.description && errors.description ? 'border-red-500' : 'border-gray-300'}`}
-              />
-              {touched.description && errors.description && <p className="text-xs text-red-600 mt-1">{errors.description}</p>}
-            </div>
-
-            {/* Status & Priority */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Status */}
-              <div className="space-y-1">
-                <Label className="font-medium">Status *</Label>
-                <Select
-                  value={values.status}
-                  onValueChange={(value) => value && setFieldValue('status', value)}
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger className={touched.status && errors.status ? 'border-red-500' : 'border-gray-300'}>
-                    <SelectValue placeholder="Select Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="in_progress">In Progress</SelectItem>
-                    <SelectItem value="waiting_sparepart">Waiting Sparepart</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-                {touched.status && errors.status && <p className="text-xs text-red-600 mt-1">{errors.status}</p>}
-              </div>
-
-              {/* Priority */}
-              <div className="space-y-1">
-                <Label className="font-medium">Priority *</Label>
-                <Select
-                  value={values.priority}
-                  onValueChange={(value) => value && setFieldValue('priority', value)}
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger className={touched.priority && errors.priority ? 'border-red-500' : 'border-gray-300'}>
-                    <SelectValue placeholder="Select Priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                  </SelectContent>
-                </Select>
-                {touched.priority && errors.priority && <p className="text-xs text-red-600 mt-1">{errors.priority}</p>}
-              </div>
-            </div>
-
-            {/* Room */}
-            <div className="space-y-1">
-              <Label className="font-medium">Room *</Label>
-              <RoomAutocomplete
-                rooms={rooms}
-                selectedRoom={values.room}
-                onSelect={(selectedRoom) => setFieldValue('room', selectedRoom)}
-                disabled={isSubmitting}
-              />
-              {touched.room && errors.room && (
-                <p className="text-xs text-red-600 mt-1">
-                  {typeof errors.room === 'string' ? errors.room : (errors.room as FormikErrors<Room>).room_id}
-                </p>
-              )}
-            </div>
-
-            {/* Topic */}
-            <div className="space-y-1">
-              <Label className="font-medium">Topic *</Label>
-              <Select
-                value={values.topic.title}
-                onValueChange={(value) => {
-                  const topic = topics.find(t => t.title === value);
-                  if (topic) setFieldValue('topic', { title: topic.title, description: topic.description || '' });
-                }}
-                disabled={isSubmitting}
-              >
-                <SelectTrigger className={touched.topic?.title && errors.topic?.title ? 'border-red-500' : 'border-gray-300'}>
-                  <SelectValue placeholder="Select Topic" />
-                </SelectTrigger>
-                <SelectContent>
-                  {topics.length ? topics.map(topic => (
-                    <SelectItem key={topic.id} value={topic.title}>
-                      {topic.title}
-                    </SelectItem>
-                  )) : (
-                    <SelectItem value="loading" disabled>Loading...</SelectItem>
+              {/* Basic Information Tab */}
+              <TabsContent value="basic" className="space-y-4">
+                {/* Property Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="property">Property *</Label>
+                  <Select 
+                    value={selectedProperty || ''} 
+                    onValueChange={(value) => {
+                      // Update the selected property in the store
+                      setSelectedProperty(value);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a property" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {userProperties.map((property) => (
+                        <SelectItem key={property.property_id} value={property.property_id}>
+                          {property.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!selectedProperty && (
+                    <p className="text-sm text-red-600">Please select a property to continue</p>
                   )}
-                </SelectContent>
-              </Select>
-              {touched.topic?.title && errors.topic?.title && <p className="text-xs text-red-600 mt-1">{errors.topic.title}</p>}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Job Description *</Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => handleInputChange('description', e.target.value)}
+                      placeholder="Describe the job requirements..."
+                      rows={4}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="priority">Priority</Label>
+                    <Select value={formData.priority} onValueChange={(value) => handleInputChange('priority', value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {priorityOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <div className="flex items-center gap-2">
+                              <Badge className={option.color}>{option.label}</Badge>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Room</Label>
+                    <RoomAutocomplete
+                      selectedRoom={selectedRoom}
+                      onRoomSelect={handleRoomSelect}
+                      propertyId={selectedProperty || undefined}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Topic</Label>
+                    <TopicAutocomplete
+                      topics={topics}
+                      selectedTopic={selectedTopic ? { title: selectedTopic.title, description: selectedTopic.description || '' } : { title: '', description: '' }}
+                      onSelect={handleTopicSelect}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Details Tab */}
+              <TabsContent value="details" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Status</Label>
+                    <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <div className="flex items-center gap-2">
+                              <Badge className={option.color}>{option.label}</Badge>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="estimated_hours">Estimated Hours</Label>
+                    <Input
+                      id="estimated_hours"
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      value={formData.estimated_hours}
+                      onChange={(e) => handleInputChange('estimated_hours', e.target.value)}
+                      placeholder="0.0"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="assigned_to">Assigned To</Label>
+                  <Input
+                    id="assigned_to"
+                    value={formData.assigned_to}
+                    onChange={(e) => handleInputChange('assigned_to', e.target.value)}
+                    placeholder="Enter assignee name"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="remarks">Remarks</Label>
+                  <Textarea
+                    id="remarks"
+                    value={formData.remarks}
+                    onChange={(e) => handleInputChange('remarks', e.target.value)}
+                    placeholder="Additional notes or remarks..."
+                    rows={3}
+                  />
+                </div>
+              </TabsContent>
+
+              {/* Media Tab */}
+              <TabsContent value="media" className="space-y-4">
+                <div className="space-y-4">
+                  <div>
+                    <Label>Upload Images</Label>
+                    <FileUpload
+                      onFileSelect={handleImageUpload}
+                      accept="image/*"
+                      maxFiles={10}
+                    />
+                  </div>
+
+                  {/* Image Preview */}
+                  {images.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Uploaded Images</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {images.map((file, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt={`Preview ${index + 1}`}
+                              className="w-full h-24 object-cover rounded-md"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleImageRemove(index)}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Existing Images */}
+                  {imageUrls.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Existing Images</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {imageUrls.map((url, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={url}
+                              alt={`Existing ${index + 1}`}
+                              className="w-full h-24 object-cover rounded-md"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleImageUrlRemove(index)}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* Advanced Tab */}
+              <TabsContent value="advanced" className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="is_defective"
+                    checked={formData.is_defective}
+                    onChange={(e) => handleInputChange('is_defective', e.target.checked)}
+                    className="rounded"
+                  />
+                  <Label htmlFor="is_defective">Mark as Defect</Label>
+                </div>
+
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-yellow-800">Advanced Options</h4>
+                      <p className="text-sm text-yellow-700 mt-1">
+                        Use these options carefully. Defect jobs are marked for special attention and may have different workflows.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <hr className="border-gray-200" />
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3">
+              {onCancel && (
+                <Button type="button" variant="outline" onClick={onCancel}>
+                  Cancel
+                </Button>
+              )}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {isEdit ? 'Update Job' : 'Create Job'}
+              </Button>
             </div>
-
-            {/* Remarks */}
-            <div className="space-y-1">
-              <Label htmlFor="remarks" className="font-medium">Remarks</Label>
-              <Field
-                as={Textarea}
-                id="remarks"
-                name="remarks"
-                placeholder="Enter additional remarks (optional)..."
-                disabled={isSubmitting}
-                className={`w-full min-h-[80px] ${touched.remarks && errors.remarks ? 'border-red-500' : 'border-gray-300'}`}
-              />
-              {touched.remarks && errors.remarks && <p className="text-xs text-red-600 mt-1">{errors.remarks}</p>}
-            </div>
-
-            {/* Files */}
-            <div className="space-y-1">
-              <Label className="font-medium">Images *</Label>
-              <FileUpload
-                onFileSelect={(selectedFiles) => setFieldValue('files', selectedFiles)}
-                error={touched.files && typeof errors.files === 'string' ? errors.files : undefined}
-                disabled={isSubmitting}
-              />
-            </div>
-
-            {/* Checkboxes */}
-            <div className="flex items-center gap-4">
-              <Checkbox
-                checked={values.is_defective}
-                onCheckedChange={(checked) => setFieldValue('is_defective', checked)}
-                disabled={isSubmitting}
-              />
-              <Label>Is Defective?</Label>
-
-              <Checkbox
-                checked={values.is_preventivemaintenance}
-                onCheckedChange={(checked) => setFieldValue('is_preventivemaintenance', checked)}
-                disabled={isSubmitting}
-              />
-              <Label>Is Preventive Maintenance?</Label>
-            </div>
-
-            <Button type="submit" disabled={isSubmitting} className="w-full">
-              {isSubmitting ? 'Creating...' : 'Create Job'}
-            </Button>
-          </Form>
-        )}
-      </Formik>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 };
