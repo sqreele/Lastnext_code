@@ -1,402 +1,485 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/app/components/ui/card";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
-import _ from "lodash";
-import { Job, JobStatus, STATUS_COLORS } from "@/app/lib/types";
-import { useProperty } from "@/app/lib/PropertyContext";
-import { useSession, signOut } from "next-auth/react";
-import { Session } from "next-auth";
-import { fetchJobs } from "@/app/lib/data";
-import { Button } from "@/app/components/ui/button";
-import Link from "next/link";
-import { useJob } from "@/app/lib/JobContext";
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { Button } from '@/app/components/ui/button';
+import { Badge } from '@/app/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { Input } from '@/app/components/ui/input';
+import { Label } from '@/app/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
+import { useToast } from '@/app/components/ui/use-toast';
+import { 
+  Plus, 
+  Search, 
+  Filter, 
+  RefreshCw, 
+  Calendar, 
+  Clock, 
+  AlertTriangle, 
+  CheckCircle, 
+  XCircle,
+  TrendingUp,
+  TrendingDown,
+  Activity
+} from 'lucide-react';
+import { usePropertyStore } from '@/app/lib/stores/propertyStore';
+import { useJobStore } from '@/app/lib/stores/jobStore';
+import { Job, JobStatus, Property } from '@/app/lib/types';
+import { fetchJobsForProperty } from '@/app/lib/data';
+import { JobCard } from './JobCard';
+import CreateJobButton from './CreateJobButton';
+import JobFilters from './JobFilters';
+import Pagination from './Pagination';
+import { cn } from '@/app/lib/utils';
 
 interface PropertyJobsDashboardProps {
-  initialJobs?: Job[];
+  property?: Property;
+  showCreateButton?: boolean;
+  showFilters?: boolean;
+  maxJobs?: number;
 }
 
-const PropertyJobsDashboard = ({ initialJobs = [] }: PropertyJobsDashboardProps) => {
-  const { selectedProperty, userProperties } = useProperty();
-  const { data: session, status, update } = useSession() as {
-    data: Session | null;
-    status: "authenticated" | "unauthenticated" | "loading";
-    update: () => Promise<Session | null>;
-  };
-  const { jobCreationCount } = useJob();
-  const [allJobs, setAllJobs] = useState<Job[]>(initialJobs);
-  const [filteredJobs, setFilteredJobs] = useState<Job[]>(initialJobs);
+type TabValue = JobStatus | 'all';
+
+const PropertyJobsDashboard: React.FC<PropertyJobsDashboardProps> = ({
+  property,
+  showCreateButton = true,
+  showFilters = true,
+  maxJobs = 50
+}) => {
+  const router = useRouter();
+  const { toast } = useToast();
+  const { selectedProperty, userProperties } = usePropertyStore();
+  const { jobCreationCount } = useJobStore();
+
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [jobsPerPage] = useState(12);
+  const [activeTab, setActiveTab] = useState<TabValue>('pending');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // Memoize the current property ID to reduce unnecessary re-renders
-  const effectiveProperty = useMemo(() => {
-    return selectedProperty || (userProperties.length > 0 ? userProperties[0].property_id : null);
-  }, [selectedProperty, userProperties]);
+  // Use property prop or fall back to selectedProperty from store
+  const effectiveProperty = property || userProperties.find(p => p.property_id === selectedProperty);
 
-  // Simplified session refresh
-  const refreshSession = async () => {
-    try {
-      await update();
-      return true;
-    } catch (err) {
-      setError("Session expired. Please log in again.");
-      signOut();
-      return false;
-    }
-  };
-
-  // Load jobs with optimized error handling
-  const loadJobs = async () => {
-    if (status !== "authenticated" || !session?.user) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const jobsData = await fetchJobs();
-      
-      if (!Array.isArray(jobsData)) {
-        throw new Error("Invalid jobs data format");
-      }
-
-      const currentUserId = session.user.id;
-      const currentUsername = session.user.username;
-
-      // Filter only once using simple conditions
-      const userJobs = jobsData.filter((job) => {
-        const jobUser = String(job.user);
-        return jobUser === String(currentUserId) || (currentUsername && jobUser === currentUsername);
-      });
-
-      setAllJobs(userJobs);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to fetch jobs";
-      setError(errorMessage);
-      setAllJobs([]);
-
-      if (errorMessage.includes("401") || errorMessage.includes("Unauthorized")) {
-        const refreshed = await refreshSession();
-        if (refreshed) {
-          await loadJobs();
-        }
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Load jobs when necessary
+  // Fetch jobs when property changes or job creation count changes
   useEffect(() => {
+    const loadJobs = async () => {
+      if (!effectiveProperty?.property_id) {
+        setJobs([]);
+        setFilteredJobs([]);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const fetchedJobs = await fetchJobsForProperty(effectiveProperty.property_id);
+        setJobs(fetchedJobs);
+        setFilteredJobs(fetchedJobs);
+      } catch (err) {
+        console.error('Error fetching jobs:', err);
+        setError('Failed to load jobs');
+        setJobs([]);
+        setFilteredJobs([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     loadJobs();
-  }, [status, jobCreationCount]);
+  }, [effectiveProperty?.property_id, jobCreationCount]);
 
-  // Filter jobs by property with optimized logic
+  // Apply filters and sorting
   useEffect(() => {
-    const user = session?.user;
-    if (!user?.properties?.length || !allJobs.length || !effectiveProperty) {
-      setFilteredJobs([]);
-      return;
+    let filtered = [...jobs];
+
+    // Filter by status tab
+    if (activeTab !== 'all') {
+      filtered = filtered.filter(job => job.status === activeTab);
     }
 
-    // Optimized filtering with less logging
-    const filtered = allJobs.filter((job) => {
-      // Direct property_id match
-      if (job.property_id && String(job.property_id) === effectiveProperty) {
-        return true;
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(job =>
+        job.description?.toLowerCase().includes(query) ||
+        (job.job_id as string)?.toLowerCase().includes(query) ||
+        (job.user as string)?.toLowerCase().includes(query)
+      );
+    }
+
+    // Sort jobs
+    filtered.sort((a, b) => {
+      let aValue: any = a[sortBy as keyof Job];
+      let bValue: any = b[sortBy as keyof Job];
+
+      // Handle date sorting
+      if (sortBy === 'created_at' || sortBy === 'updated_at') {
+        aValue = new Date(aValue || '').getTime();
+        bValue = new Date(bValue || '').getTime();
       }
-      
-      // Room property match with special case handling
-      if (job.rooms && job.rooms.length > 0) {
-        for (const room of job.rooms) {
-          if (!room?.properties?.length) continue;
-          
-          for (const prop of room.properties) {
-            // Special case for property ID "1"
-            if (prop === 1 || String(prop) === "1") return true;
-            
-            // Object property representation
-            if (typeof prop === "object" && prop !== null && "property_id" in prop) {
-              if (String((prop as { property_id: string | number }).property_id) === effectiveProperty) return true;
-            }
-            
-            // Direct property representation
-            if (String(prop) === effectiveProperty) return true;
-          }
-        }
+
+      // Handle string sorting
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
       }
-      
-      // Job properties array match
-      if (job.properties && job.properties.length) {
-        for (const prop of job.properties) {
-          // Special case for property ID "1"
-          if (prop === 1 || String(prop) === "1") return true;
-          
-          // Object property representation
-          if (typeof prop === "object" && prop !== null && "property_id" in prop) {
-            if (String((prop as { property_id: string | number }).property_id) === effectiveProperty) return true;
-          }
-          
-          // Direct property representation
-          if (String(prop) === effectiveProperty) return true;
-        }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
       }
-      
-      return false;
     });
 
     setFilteredJobs(filtered);
-  }, [allJobs, effectiveProperty, session?.user?.properties]);
+    setCurrentPage(1); // Reset to first page when filtering
+  }, [jobs, activeTab, searchQuery, sortBy, sortOrder]);
 
-  // Memoized job statistics
-  const jobStats = useMemo(() => {
-    const total = filteredJobs.length;
-    if (total === 0) return [];
-    
-    // Use a simple accumulator approach for performance
-    const statusCounts = {} as Record<JobStatus, number>;
-    
-    for (const job of filteredJobs) {
-      statusCounts[job.status] = (statusCounts[job.status] || 0) + 1;
+  // Calculate statistics
+  const stats = {
+    total: jobs.length,
+    pending: jobs.filter(j => j.status === 'pending').length,
+    inProgress: jobs.filter(j => j.status === 'in_progress').length,
+    completed: jobs.filter(j => j.status === 'completed').length,
+    cancelled: jobs.filter(j => j.status === 'cancelled').length,
+    waitingParts: jobs.filter(j => j.status === 'waiting_sparepart').length,
+    defects: jobs.filter(j => j.is_defective).length
+  };
+
+  // Pagination
+  const indexOfLastJob = currentPage * jobsPerPage;
+  const indexOfFirstJob = indexOfLastJob - jobsPerPage;
+  const currentJobs = filteredJobs.slice(indexOfFirstJob, indexOfLastJob);
+  const totalPages = Math.ceil(filteredJobs.length / jobsPerPage);
+
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  const handleJobCreated = () => {
+    // Refresh the jobs list
+    window.location.reload();
+    toast({
+      title: "Success",
+      description: "Job created successfully",
+    });
+  };
+
+  const getStatusIcon = (status: JobStatus) => {
+    switch (status) {
+      case 'pending':
+        return <Clock className="w-4 h-4" />;
+      case 'in_progress':
+        return <Activity className="w-4 h-4" />;
+      case 'completed':
+        return <CheckCircle className="w-4 h-4" />;
+      case 'cancelled':
+        return <XCircle className="w-4 h-4" />;
+      case 'waiting_sparepart':
+        return <AlertTriangle className="w-4 h-4" />;
+      default:
+        return <Clock className="w-4 h-4" />;
     }
+  };
 
-    return (["pending", "in_progress", "completed", "waiting_sparepart", "cancelled"] as JobStatus[]).map(
-      (status) => ({
-        name: status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " "),
-        value: statusCounts[status] || 0,
-        color: STATUS_COLORS[status],
-        percentage: total > 0 ? ((statusCounts[status] || 0) / total * 100).toFixed(1) : "0",
-      })
-    );
-  }, [filteredJobs]);
+  const getStatusColor = (status: JobStatus) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-800';
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      case 'waiting_sparepart':
+        return 'bg-orange-100 text-orange-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
 
-  // Memoized job monthly data with optimization for large datasets
-  const jobsByMonth = useMemo(() => {
-    if (filteredJobs.length === 0) return [];
-
-    // Use lodash for efficient grouping
-    const grouped = _.groupBy(filteredJobs, (job) => {
-      const date = job.created_at ? new Date(job.created_at) : new Date();
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    });
-
-    // Process grouped data
-    const result = Object.entries(grouped).map(([month, monthJobs]) => {
-      const [year, monthNum] = month.split("-");
-      const date = new Date(parseInt(year), parseInt(monthNum) - 1);
-      const formattedMonth = date.toLocaleDateString("en-US", { month: "short" });
-
-      // Count statuses in a single pass
-      const counts = {
-        completed: 0,
-        pending: 0,
-        waiting_sparepart: 0,
-        in_progress: 0,
-        cancelled: 0
-      };
-      
-      for (const job of monthJobs) {
-        if (counts.hasOwnProperty(job.status)) {
-          counts[job.status as keyof typeof counts]++;
-        }
-      }
-
-      return {
-        month: `${formattedMonth} ${year}`,
-        total: monthJobs.length,
-        ...counts
-      };
-    });
-
-    // Sort chronologically
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return result.sort((a, b) => {
-      const [aMonth, aYear] = a.month.split(" ");
-      const [bMonth, bYear] = b.month.split(" ");
-
-      if (aYear !== bYear) return parseInt(aYear) - parseInt(bYear);
-      return months.indexOf(aMonth) - months.indexOf(bMonth);
-    });
-  }, [filteredJobs]);
-
-  // Loading state
-  if (status === "loading" || isLoading) {
+  if (!effectiveProperty) {
     return (
-      <Card className="w-full p-4">
-        <CardContent className="text-center">
-          <p className="text-gray-600 text-base">Loading charts...</p>
-        </CardContent>
-      </Card>
+      <div className="text-center py-8">
+        <p className="text-gray-600">Please select a property to view jobs.</p>
+      </div>
     );
   }
 
-  // Authentication state
-  if (status === "unauthenticated") {
-    return (
-      <Card className="w-full p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-        <CardContent className="text-center space-y-4">
-          <p className="text-yellow-600 text-base">Please log in to view job statistics.</p>
-          <Button asChild variant="outline" className="w-full h-12 text-base">
-            <Link href="/auth/signin">Log In</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <Card className="w-full p-4 bg-red-50 border border-yellow-200 rounded-md">
-        <CardContent className="text-center space-y-4">
-          <p className="text-red-600 text-base">{error}</p>
-          <Button asChild variant="outline" className="w-full h-12 text-base">
-            <Link href="/dashboard/myJobs">Go to My Jobs</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // No data state
-  if (filteredJobs.length === 0) {
-    return (
-      <Card className="w-full p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-        <CardContent className="text-center space-y-4">
-          <p className="text-yellow-600 text-base">
-            {allJobs.length ? "No jobs found for the selected property." : "No jobs available yet."}
-          </p>
-          <Button asChild variant="outline" className="w-full h-12 text-base">
-            <Link href={allJobs.length ? "/dashboard/myJobs" : "/dashboard/createJob"}>
-              {allJobs.length ? "View All Jobs" : "Create a Job"}
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Main dashboard view with optimized render performance
   return (
-    <div className="space-y-4 px-2">
-      <div className="space-y-4">
-        {/* Jobs by Status Chart */}
-        <Card className="w-full">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Jobs by Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={jobStats}
-                    innerRadius={40}
-                    outerRadius={70}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {jobStats.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number, name: string, props: any) => [
-                      `${value} (${props.payload.percentage}%)`,
-                      name,
-                    ]}
-                  />
-                  <Legend layout="horizontal" align="center" verticalAlign="bottom" iconSize={12} />
-                </PieChart>
-              </ResponsiveContainer>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {effectiveProperty.name} Jobs
+          </h1>
+          <p className="text-gray-600">
+            Manage maintenance jobs for this property
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          {showCreateButton && (
+            <CreateJobButton 
+              propertyId={effectiveProperty.property_id}
+              onJobCreated={handleJobCreated} 
+            />
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={cn("w-4 h-4 mr-2", isLoading && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
+              </div>
+              <Activity className="w-8 h-8 text-blue-600" />
             </div>
           </CardContent>
         </Card>
 
-        {/* Jobs by Month Chart - with limit to prevent rendering too many bars */}
-        <Card className="w-full">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Jobs by Month</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={jobsByMonth.slice(-12)}> {/* Limit to last 12 months */}
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend layout="horizontal" align="center" verticalAlign="bottom" iconSize={12} />
-                  <Bar dataKey="total" fill="#8884d8" name="Total Jobs" />
-                  <Bar dataKey="completed" stackId="a" fill={STATUS_COLORS.completed} />
-                  <Bar dataKey="pending" stackId="a" fill={STATUS_COLORS.pending} />
-                  <Bar dataKey="waiting_sparepart" stackId="a" fill={STATUS_COLORS.waiting_sparepart} name="Waiting" />
-                  <Bar dataKey="in_progress" stackId="a" fill={STATUS_COLORS.in_progress} />
-                  <Bar dataKey="cancelled" stackId="a" fill={STATUS_COLORS.cancelled} />
-                </BarChart>
-              </ResponsiveContainer>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pending</p>
+                <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+              </div>
+              <Clock className="w-8 h-8 text-yellow-600" />
             </div>
           </CardContent>
         </Card>
 
-        {/* Summary Statistics - Memoized and optimized */}
-        <Card className="w-full">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Summary Statistics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {[
-                { name: "Total Jobs", status: null },
-                ...(["pending", "in_progress", "completed", "waiting_sparepart", "cancelled"] as JobStatus[]).map(
-                  (status) => ({
-                    name: status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " "),
-                    status,
-                  })
-                ),
-              ].map((item, index) => {
-                const statValue = item.status
-                  ? filteredJobs.filter((job) => job.status === item.status).length
-                  : filteredJobs.length;
-                const color = item.status ? STATUS_COLORS[item.status] : "#8884d8";
-                const percentage = item.status
-                  ? ((statValue / filteredJobs.length) * 100).toFixed(1)
-                  : "100.0";
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">In Progress</p>
+                <p className="text-2xl font-bold text-blue-600">{stats.inProgress}</p>
+              </div>
+              <Activity className="w-8 h-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
 
-                return (
-                  <div key={`stat-${index}`} className="p-4 rounded-lg bg-gray-50 w-full flex flex-col">
-                    <p className="text-sm text-gray-500 mb-1">{item.name}</p>
-                    <div className="flex items-baseline">
-                      <p className="text-2xl font-semibold" style={{ color }}>
-                        {statValue}
-                      </p>
-                      <p className="text-sm ml-2 text-gray-500">{item.status && `(${percentage}%)`}</p>
-                    </div>
-                  </div>
-                );
-              })}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Completed</p>
+                <p className="text-2xl font-bold text-green-600">{stats.completed}</p>
+              </div>
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Waiting Parts</p>
+                <p className="text-2xl font-bold text-orange-600">{stats.waitingParts}</p>
+              </div>
+              <AlertTriangle className="w-8 h-8 text-orange-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Cancelled</p>
+                <p className="text-2xl font-bold text-red-600">{stats.cancelled}</p>
+              </div>
+              <XCircle className="w-8 h-8 text-red-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Defects</p>
+                <p className="text-2xl font-bold text-red-600">{stats.defects}</p>
+              </div>
+              <AlertTriangle className="w-8 h-8 text-red-600" />
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Filters and Search */}
+      {showFilters && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1">
+                <Label htmlFor="search">Search Jobs</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    id="search"
+                    placeholder="Search by description, ID, or user..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <div>
+                  <Label htmlFor="sortBy">Sort By</Label>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="created_at">Created Date</SelectItem>
+                      <SelectItem value="updated_at">Updated Date</SelectItem>
+                      <SelectItem value="description">Description</SelectItem>
+                      <SelectItem value="priority">Priority</SelectItem>
+                      <SelectItem value="status">Status</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="sortOrder">Order</Label>
+                  <Select value={sortOrder} onValueChange={(value: 'asc' | 'desc') => setSortOrder(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="desc">
+                        <div className="flex items-center gap-2">
+                          <TrendingDown className="w-4 h-4" />
+                          Newest First
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="asc">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4" />
+                          Oldest First
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Status Tabs */}
+      <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value as TabValue)}>
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="all" className="flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            All ({stats.total})
+          </TabsTrigger>
+          <TabsTrigger value="pending" className="flex items-center gap-2">
+            <Clock className="w-4 h-4" />
+            Pending ({stats.pending})
+          </TabsTrigger>
+          <TabsTrigger value="in_progress" className="flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            In Progress ({stats.inProgress})
+          </TabsTrigger>
+          <TabsTrigger value="completed" className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4" />
+            Completed ({stats.completed})
+          </TabsTrigger>
+          <TabsTrigger value="waiting_sparepart" className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            Waiting Parts ({stats.waitingParts})
+          </TabsTrigger>
+          <TabsTrigger value="cancelled" className="flex items-center gap-2">
+            <XCircle className="w-4 h-4" />
+            Cancelled ({stats.cancelled})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={activeTab} className="mt-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-gray-600">Loading jobs...</span>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-600 mb-4">{error}</p>
+              <Button onClick={handleRefresh} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          ) : filteredJobs.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600 mb-4">
+                {searchQuery || activeTab !== 'all' 
+                  ? 'No jobs match your current filters.' 
+                  : 'No jobs found for this property.'}
+              </p>
+              {showCreateButton && (
+                <CreateJobButton 
+                  propertyId={effectiveProperty.property_id}
+                  onJobCreated={handleJobCreated} 
+                />
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="mb-4 text-sm text-gray-500">
+                Showing {currentJobs.length} of {filteredJobs.length} jobs
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {currentJobs.slice(0, maxJobs).map((job) => (
+                  <JobCard key={job.job_id} job={job} />
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="mt-8 flex justify-center">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

@@ -14,6 +14,7 @@ interface FilterState {
   status: string;
   frequency: string | number;
   machine: string;
+  topic: string;
   startDate: string;
   endDate: string;
   page: number;
@@ -40,6 +41,7 @@ const defaultFilters: FilterState = {
   status: '',
   frequency: '',
   machine: '',
+  topic: '',
   startDate: '',
   endDate: '',
   page: 1,
@@ -58,16 +60,24 @@ export default function FilterPanel({
   topics,
   onTopicChange,
 }: FilterPanelProps) {
-  const [filterTopic, setFilterTopic] = useState<string>('all');
-
   const getMachineNameById = (machineId: string) => {
     const machine = machineOptions.find(m => m.id === machineId);
     return machine ? machine.name : machineId;
   };
 
+  const getTopicNameById = (topicId: string) => {
+    const topic = topics.find(t => t.id === topicId);
+    return topic ? topic.title : topicId;
+  };
+
   const handleSortChange = (value: string) => {
     const [field, order] = value.split('-');
     onSortChangeAction(field as SortField, order as 'asc' | 'desc');
+  };
+
+  const handleTopicChange = (topicId: string) => {
+    onFilterChangeAction('topic', topicId);
+    onTopicChange(topicId);
   };
 
   return (
@@ -115,6 +125,13 @@ export default function FilterPanel({
             color="purple"
           />
         )}
+        {currentFilters.topic && (
+          <FilterChip
+            label={`Topic: ${getTopicNameById(currentFilters.topic)}`}
+            onRemove={() => onFilterChangeAction('topic', '')}
+            color="orange"
+          />
+        )}
       </div>
 
       {/* Expandable sections */}
@@ -149,7 +166,7 @@ export default function FilterPanel({
           </div>
         </FilterSection>
 
-        <FilterSection title="Machine & Dates">
+        <FilterSection title="Machine & Topic">
           <div className="space-y-3">
             <select
               value={currentFilters.machine || ''}
@@ -163,25 +180,40 @@ export default function FilterPanel({
                 </option>
               ))}
             </select>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
-                <input
-                  type="date"
-                  value={currentFilters.startDate || ''}
-                  onChange={(e) => onFilterChangeAction('startDate', e.target.value)}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
-                <input
-                  type="date"
-                  value={currentFilters.endDate || ''}
-                  onChange={(e) => onFilterChangeAction('endDate', e.target.value)}
-                  className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+            <select
+              value={currentFilters.topic || ''}
+              onChange={(e) => handleTopicChange(e.target.value)}
+              className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Topics</option>
+              {topics.map((topic) => (
+                <option key={topic.id} value={topic.id}>
+                  {topic.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        </FilterSection>
+
+        <FilterSection title="Date Range">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={currentFilters.startDate || ''}
+                onChange={(e) => onFilterChangeAction('startDate', e.target.value)}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
+              <input
+                type="date"
+                value={currentFilters.endDate || ''}
+                onChange={(e) => onFilterChangeAction('endDate', e.target.value)}
+                className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
         </FilterSection>
@@ -200,31 +232,17 @@ export default function FilterPanel({
             <option value="machine-desc">Machine (Z-A)</option>
           </select>
         </FilterSection>
-
-        <FilterSection title="Filter by Topic">
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Topic</label>
-            <select
-              value={filterTopic}
-              onChange={e => setFilterTopic(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2"
-            >
-              <option value="all">All Topics</option>
-              {topics.map(topic => (
-                <option key={topic.id} value={topic.id}>{topic.title}</option>
-              ))}
-            </select>
-          </div>
-        </FilterSection>
       </div>
       
       {/* Filter actions */}
       <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200">
         <span className="text-sm text-gray-600">
           {totalCount} tasks found
-          {currentFilters.machine && (
+          {(currentFilters.machine || currentFilters.topic) && (
             <span className="block text-blue-600 font-medium mt-1">
-              Filtered by: {getMachineNameById(currentFilters.machine)}
+              Filtered by: {currentFilters.machine && getMachineNameById(currentFilters.machine)}
+              {currentFilters.machine && currentFilters.topic && ' & '}
+              {currentFilters.topic && getTopicNameById(currentFilters.topic)}
             </span>
           )}
         </span>
@@ -244,7 +262,8 @@ function FilterChip({ label, onRemove, color }: { label: string; onRemove: () =>
   const colorClasses = {
     blue: 'bg-blue-100 text-blue-800',
     green: 'bg-green-100 text-green-800',
-    purple: 'bg-purple-100 text-purple-800'
+    purple: 'bg-purple-100 text-purple-800',
+    orange: 'bg-orange-100 text-orange-800'
   };
 
   return (
