@@ -1,47 +1,38 @@
 // /app/dashboard/createJob/page.tsx
+'use client';
+
 import { Suspense } from 'react';
-import { Metadata } from 'next';
 import CreateJobForm from '@/app/components/jobs/CreateJobForm';
-import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/lib/auth'; // Correct path to your authOptions
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useUser } from '@/app/lib/user-context'; // If you have this
 
-export const dynamic = 'force-dynamic';
+export default function CreateJobPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const { userProfile } = useUser(); // If available
 
-export const metadata: Metadata = {
-  title: 'Create Job - Maintenance & Job Management Dashboard',
-  description: 'Create a new maintenance job effortlessly. Assign tasks, set priorities, and upload images with our intuitive form.',
-  keywords: ['create job', 'maintenance task', 'job management', 'property maintenance', 'dashboard'],
-  openGraph: {
-    title: 'Create Job - Maintenance & Job Management Dashboard',
-    description: 'Add new maintenance tasks with ease using our Next.js-powered form.',
-    url: 'https://pmcs.site/dashboard/createJob',
-    type: 'website',
-    images: [
-      {
-        url: 'https://pmcs.site/og-create-job.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'Create Job Page Preview',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Create Job - Maintenance & Job Management Dashboard',
-    description: 'Effortlessly create maintenance jobs with our intuitive tool.',
-    images: ['https://pmcs.site/twitter-create-job.jpg'],
-  },
-};
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin');
+    }
+  }, [status, router]);
 
-export default async function CreateJobPage() {
-  // Server-side session check
-  const session = await getServerSession(authOptions);
-  console.log('Server session:', session); // Debug log
-
-  if (!session) {
-    redirect('/auth/signin');
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
   }
+
+  if (status === 'unauthenticated') {
+    return null;
+  }
+
+  // If you have a default property or active property in your user context
+  const activePropertyId = userProfile?.activePropertyId || userProfile?.properties?.[0]?.id;
 
   return (
     <div className="space-y-4 p-4 sm:p-8 w-full max-w-2xl mx-auto">
@@ -51,7 +42,12 @@ export default async function CreateJobPage() {
       <p className="text-sm sm:text-base text-muted-foreground">
         Fill out the form below to add a new job.
       </p>
-      <Suspense fallback={<div className="flex items-center justify-center p-4 text-sm sm:text-base text-gray-500">Loading form...</div>}>
+      
+      <Suspense fallback={
+        <div className="flex items-center justify-center p-4 text-sm sm:text-base text-gray-500">
+          Loading form...
+        </div>
+      }>
         <CreateJobForm />
       </Suspense>
     </div>

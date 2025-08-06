@@ -16,7 +16,7 @@ import {
 import apiClient from '@/app/lib/api-client';
 import FileUpload from '@/app/components/jobs/FileUpload';
 import { useToast } from '@/app/lib/hooks/use-toast';
-import { useProperty } from '@/app/lib/PropertyContext';
+import { usePropertyStore } from '@/app/lib/stores/propertyStore';
 import { preventiveMaintenanceService, 
   type CreatePreventiveMaintenanceData,
   type UpdatePreventiveMaintenanceData,
@@ -74,9 +74,9 @@ const PreventiveMaintenanceForm: React.FC<PreventiveMaintenanceFormProps> = ({
   const { data: session } = useSession();
   const {
     userProperties,
-    selectedProperty: contextSelectedProperty,
-    setSelectedProperty: setContextSelectedProperty,
-  } = useProperty();
+    selectedProperty,
+    setSelectedProperty,
+  } = usePropertyStore();
 
   const [fetchedInitialData, setFetchedInitialData] = useState<PreventiveMaintenance | null>(null);
   const actualInitialData = initialDataProp || fetchedInitialData;
@@ -163,7 +163,7 @@ const PreventiveMaintenanceForm: React.FC<PreventiveMaintenanceFormProps> = ({
         : machineIdsFromData;
 
       const propertyDetails = getPropertyDetails(currentData.property_id);
-      const propertyId = propertyDetails.id || contextSelectedProperty || null;
+      const propertyId = propertyDetails.id || selectedProperty || null;
 
       const customDays = currentData.custom_days === null || currentData.custom_days === undefined ? '' : currentData.custom_days;
       const selectedTopics = topicIds || [];
@@ -200,10 +200,10 @@ const PreventiveMaintenanceForm: React.FC<PreventiveMaintenanceFormProps> = ({
       after_image_file: null,
       selected_topics: [],
       selected_machine_ids: machineId ? [machineId] : [],
-      property_id: contextSelectedProperty || null,
+      property_id: selectedProperty || null,
       procedure: '',
     };
-  }, [actualInitialData, contextSelectedProperty, machineId]);
+  }, [actualInitialData, selectedProperty, machineId]);
 
   const clearError = () => {
     setError(null);
@@ -502,8 +502,8 @@ const PreventiveMaintenanceForm: React.FC<PreventiveMaintenanceFormProps> = ({
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   const newPropertyId = e.target.value || null;
                   setFieldValue('property_id', newPropertyId);
-                  if (newPropertyId && setContextSelectedProperty) {
-                    setContextSelectedProperty(newPropertyId);
+                  if (newPropertyId && setSelectedProperty) {
+                    setSelectedProperty(newPropertyId);
                   }
                   setFieldValue('selected_machine_ids', []);
                 }}
