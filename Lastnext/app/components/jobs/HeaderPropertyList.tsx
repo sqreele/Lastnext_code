@@ -11,10 +11,10 @@ import { Button } from "@/app/components/ui/button";
 import { ChevronDown, Building2 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Loader2 } from "lucide-react";
-import { useUser } from '@/app/lib/user-context';
+import { usePropertyStore } from '@/app/lib/stores/propertyStore';
 
 const HeaderPropertyList = () => {
-  const { userProfile, selectedProperty, setSelectedProperty, loading } = useUser();
+  const { selectedProperty, setSelectedProperty, userProperties, hasProperties } = usePropertyStore();
   
   // Helper function to safely get the string ID from any property object format
   const getPropertyId = useCallback((property: any): string => {
@@ -36,17 +36,12 @@ const HeaderPropertyList = () => {
     return property.name || `Property ${getPropertyId(property)}`;
   }, [getPropertyId]);
 
-  // Get properties from userProfile
-  const properties = useMemo(() => {
-    return userProfile?.properties || [];
-  }, [userProfile]);
-
   // Find current property by selectedProperty ID
   const currentProperty = useMemo(() => {
-    if (!properties.length) return null;
+    if (!userProperties.length) return null;
     
     if (selectedProperty) {
-      for (const prop of properties) {
+      for (const prop of userProperties) {
         const propId = getPropertyId(prop);
         if (propId === selectedProperty) {
           return prop;
@@ -54,35 +49,20 @@ const HeaderPropertyList = () => {
       }
     }
     
-    return properties[0];
-  }, [properties, selectedProperty, getPropertyId]);
+    return userProperties[0];
+  }, [userProperties, selectedProperty, getPropertyId]);
 
   // Handle property selection
   const handlePropertySelect = useCallback(
     (property: any) => {
       const propId = getPropertyId(property);
       setSelectedProperty(propId);
-      localStorage.setItem("selectedPropertyId", propId); // Persist selection
     },
     [getPropertyId, setSelectedProperty]
   );
 
-  // Loading state if user data is not yet available
-  if (loading) {
-    return (
-      <Button
-        variant="outline"
-        disabled
-        className="flex items-center gap-2 w-full sm:w-auto h-12 px-4 bg-white border-gray-300 text-gray-500"
-      >
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading...
-      </Button>
-    );
-  }
-
   // If no properties available, show disabled button
-  if (properties.length === 0) {
+  if (!hasProperties) {
     return (
       <Button
         variant="outline"
@@ -116,7 +96,7 @@ const HeaderPropertyList = () => {
           className="w-full min-w-[200px] max-w-[90vw] bg-white border-gray-200 shadow-md rounded-md mt-1"
           align="start"
         >
-          {properties.map((property, index) => (
+          {userProperties.map((property, index) => (
             <DropdownMenuItem
               key={getPropertyId(property) || `property-${index}`}
               onClick={() => handlePropertySelect(property)}
