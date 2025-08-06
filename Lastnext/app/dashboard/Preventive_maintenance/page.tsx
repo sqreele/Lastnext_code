@@ -1,122 +1,429 @@
 // app/dashboard/Preventive_maintenance/page.tsx
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useProperty } from '@/app/lib/PropertyContext';
-import { useUser } from '@/app/lib/user-context';
-import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
-import PreventiveMaintenanceDashboard from '@/app/dashboard/Preventive_maintenance/PreventiveMaintenanceDashboard';
-import { Badge } from '@/app/components/ui/badge';
+import { usePropertyStore } from '@/app/lib/stores/propertyStore';
+import { usePreventiveMaintenanceStore } from '@/app/lib/stores/preventiveMaintenanceStore';
+import { useEffect, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
-import Link from 'next/link';
-import { Wrench, AlertTriangle, Building } from 'lucide-react';
+import { Badge } from '@/app/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { Input } from '@/app/components/ui/input';
+import { Label } from '@/app/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
+import { useToast } from '@/app/components/ui/use-toast';
+import { 
+  Plus, 
+  Search, 
+  Filter, 
+  RefreshCw, 
+  Calendar, 
+  Clock, 
+  AlertTriangle, 
+  CheckCircle, 
+  XCircle,
+  TrendingUp,
+  TrendingDown,
+  Activity,
+  Wrench
+} from 'lucide-react';
+import { Job, JobStatus, Property } from '@/app/lib/types';
+import { fetchJobsForProperty } from '@/app/lib/data';
+import { JobCard } from '@/app/components/jobs/JobCard';
+import CreateJobButton from '@/app/components/jobs/CreateJobButton';
+import JobFilters from '@/app/components/jobs/JobFilters';
+import Pagination from '@/app/components/jobs/Pagination';
+import { cn } from '@/app/lib/utils';
+
+type TabValue = 'all' | 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'waiting_sparepart';
 
 export default function PreventiveMaintenancePage() {
-  const { selectedProperty, hasProperties } = useProperty();
-  const { userProfile, loading: userLoading } = useUser();
-  const { status } = useSession();
-  const [isClient, setIsClient] = useState(false);
+  const { toast } = useToast();
+  const { selectedProperty, userProperties } = usePropertyStore();
 
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [jobsPerPage] = useState(12);
+  const [activeTab, setActiveTab] = useState<TabValue>('pending');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Use selectedProperty from store
+  const effectiveProperty = userProperties.find(p => p.property_id === selectedProperty);
+
+  // Fetch jobs when property changes
   useEffect(() => {
-    setIsClient(true);
-    
-    // If not authenticated, redirect to login
-    if (status === 'unauthenticated') {
-      redirect('/auth/signin');
+    const loadJobs = async () => {
+      if (!effectiveProperty?.property_id) {
+        setJobs([]);
+        setFilteredJobs([]);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const fetchedJobs = await fetchJobsForProperty(effectiveProperty.property_id);
+        // Filter for preventive maintenance jobs only
+        const pmJobs = fetchedJobs.filter(job => job.is_preventivemaintenance === true);
+        setJobs(pmJobs);
+        setFilteredJobs(pmJobs);
+      } catch (err) {
+        console.error('Error fetching jobs:', err);
+        setError('Failed to load jobs');
+        setJobs([]);
+        setFilteredJobs([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadJobs();
+  }, [effectiveProperty?.property_id]);
+
+  // Apply filters and sorting
+  useEffect(() => {
+    let filtered = [...jobs];
+
+    // Filter by status tab
+    if (activeTab !== 'all') {
+      filtered = filtered.filter(job => job.status === activeTab);
     }
-  }, [status]);
 
-  // Handle loading state
-  if (status === 'loading' || userLoading || !isClient) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600"></div>
-          <p className="text-gray-600">Loading maintenance dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(job =>
+        job.description?.toLowerCase().includes(query) ||
+        (job.job_id as string)?.toLowerCase().includes(query) ||
+        (job.user as string)?.toLowerCase().includes(query)
+      );
+    }
 
-  // If no property is selected, show property selection prompt
-  if (!selectedProperty) {
-    return (
-      <div className="max-w-4xl mx-auto p-4 sm:p-6">
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center">
-          <div className="mb-4 flex justify-center">
-            <Building className="h-12 w-12 text-amber-500" />
-          </div>
-          <h1 className="text-xl font-semibold text-amber-800 mb-2">Select a Property</h1>
-          <p className="text-amber-700 mb-4">
-            Please select a property to view its preventive maintenance dashboard.
-          </p>
-          <Link href="/dashboard">
-            <Button variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100">
-              Go to Dashboard
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
+    // Sort jobs
+    filtered.sort((a, b) => {
+      let aValue: any = a[sortBy as keyof Job];
+      let bValue: any = b[sortBy as keyof Job];
 
-  // If user has no properties, show no properties message
-  if (!hasProperties) {
-    return (
-      <div className="max-w-4xl mx-auto p-4 sm:p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <div className="mb-4 flex justify-center">
-            <AlertTriangle className="h-12 w-12 text-red-500" />
-          </div>
-          <h1 className="text-xl font-semibold text-red-800 mb-2">No Properties Found</h1>
-          <p className="text-red-700 mb-4">
-            You don't have any properties assigned to your account. Please contact your administrator.
-          </p>
-        </div>
-      </div>
-    );
-  }
+      // Handle date sorting
+      if (sortBy === 'created_at' || sortBy === 'updated_at') {
+        aValue = new Date(aValue || '').getTime();
+        bValue = new Date(bValue || '').getTime();
+      }
 
-  // Get the property name for the selected property
-  const getPropertyName = () => {
-    if (!selectedProperty || !userProfile?.properties) return 'Selected Property';
-    
-    const property = userProfile.properties.find(p => 
-      p.property_id === selectedProperty);
-    
-    return property?.name || `Property ${selectedProperty}`;
+      // Handle string sorting
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    setFilteredJobs(filtered);
+    setCurrentPage(1); // Reset to first page when filtering
+  }, [jobs, activeTab, searchQuery, sortBy, sortOrder]);
+
+  // Calculate statistics
+  const stats = {
+    total: jobs.length,
+    pending: jobs.filter(j => j.status === 'pending').length,
+    inProgress: jobs.filter(j => j.status === 'in_progress').length,
+    completed: jobs.filter(j => j.status === 'completed').length,
+    cancelled: jobs.filter(j => j.status === 'cancelled').length,
+    waitingParts: jobs.filter(j => j.status === 'waiting_sparepart').length,
+    defects: jobs.filter(j => j.is_defective).length
   };
 
+  // Pagination
+  const indexOfLastJob = currentPage * jobsPerPage;
+  const indexOfFirstJob = indexOfLastJob - jobsPerPage;
+  const currentJobs = filteredJobs.slice(indexOfFirstJob, indexOfLastJob);
+  const totalPages = Math.ceil(filteredJobs.length / jobsPerPage);
+
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  const handleJobCreated = () => {
+    // Refresh the jobs list
+    window.location.reload();
+    toast({
+      title: "Success",
+      description: "Preventive maintenance job created successfully",
+    });
+  };
+
+  const getStatusIcon = (status: JobStatus) => {
+    switch (status) {
+      case 'pending':
+        return <Clock className="w-4 h-4" />;
+      case 'in_progress':
+        return <Activity className="w-4 h-4" />;
+      case 'completed':
+        return <CheckCircle className="w-4 h-4" />;
+      case 'cancelled':
+        return <XCircle className="w-4 h-4" />;
+      case 'waiting_sparepart':
+        return <AlertTriangle className="w-4 h-4" />;
+      default:
+        return <Clock className="w-4 h-4" />;
+    }
+  };
+
+  const getStatusColor = (status: JobStatus) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-800';
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      case 'waiting_sparepart':
+        return 'bg-orange-100 text-orange-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (!effectiveProperty) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-600">Please select a property to view preventive maintenance jobs.</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="flex items-center gap-2">
+          <RefreshCw className="h-6 w-6 animate-spin text-blue-600" />
+          <span className="text-gray-600">Loading preventive maintenance jobs...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600 mb-4">{error}</p>
+        <Button onClick={handleRefresh} variant="outline">
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Preventive Maintenance</h1>
-          <div className="flex items-center mt-2">
-            <Badge variant="outline" className="text-sm font-normal flex items-center gap-1.5">
-              <Building className="h-3.5 w-3.5" />
-              {getPropertyName()}
-            </Badge>
+          <h1 className="text-2xl font-bold text-gray-900">Preventive Maintenance</h1>
+          <p className="text-gray-600">
+            Managing preventive maintenance jobs for {effectiveProperty.name}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleRefresh} variant="outline" size="sm">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+          <CreateJobButton propertyId={effectiveProperty.property_id} onJobCreated={handleJobCreated} />
+        </div>
+      </div>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Wrench className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total PM Jobs</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-yellow-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pending</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">In Progress</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.inProgress}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Completed</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Waiting Parts</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.waitingParts}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-red-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Cancelled</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.cancelled}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Defects</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.defects}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search and Filters */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              placeholder="Search preventive maintenance jobs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Button asChild variant="outline" className="flex items-center gap-1.5">
-            <Link href="/dashboard">
-              View Dashboard
-            </Link>
-          </Button>
-          <Button asChild className="flex items-center gap-1.5">
-            <Link href="/dashboard/createJob">
-              <Wrench className="h-4 w-4" />
-              Create Job
-            </Link>
+        <div className="flex items-center gap-2">
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="created_at">Created Date</SelectItem>
+              <SelectItem value="updated_at">Updated Date</SelectItem>
+              <SelectItem value="priority">Priority</SelectItem>
+              <SelectItem value="status">Status</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+          >
+            {sortOrder === 'asc' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
           </Button>
         </div>
       </div>
-      
-      {/* Pass the selected property ID to the Preventive Maintenance Dashboard */}
-      <PreventiveMaintenanceDashboard propertyId={selectedProperty} />
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="all" className="flex items-center gap-2">
+            <Wrench className="w-4 h-4" />
+            All ({stats.total})
+          </TabsTrigger>
+          <TabsTrigger value="pending" className="flex items-center gap-2">
+            <Clock className="w-4 h-4" />
+            Pending ({stats.pending})
+          </TabsTrigger>
+          <TabsTrigger value="in_progress" className="flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            In Progress ({stats.inProgress})
+          </TabsTrigger>
+          <TabsTrigger value="waiting_sparepart" className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            Waiting Parts ({stats.waitingParts})
+          </TabsTrigger>
+          <TabsTrigger value="completed" className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4" />
+            Completed ({stats.completed})
+          </TabsTrigger>
+          <TabsTrigger value="cancelled" className="flex items-center gap-2">
+            <XCircle className="w-4 h-4" />
+            Cancelled ({stats.cancelled})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={activeTab} className="mt-6">
+          {filteredJobs.length === 0 ? (
+            <div className="text-center py-12">
+              <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No preventive maintenance jobs found</h3>
+              <p className="text-gray-600 mb-4">
+                {activeTab === 'all' 
+                  ? 'No preventive maintenance jobs available for this property.'
+                  : `No ${activeTab.replace('_', ' ')} preventive maintenance jobs found.`
+                }
+              </p>
+              <CreateJobButton propertyId={effectiveProperty.property_id} onJobCreated={handleJobCreated} />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {currentJobs.map((job) => (
+                  <JobCard key={job.job_id} job={job} properties={userProperties as any} />
+                ))}
+              </div>
+              
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                />
+              )}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

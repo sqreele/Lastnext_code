@@ -27,7 +27,7 @@ import {
   getLocationString,
   itemMatchesMachine
 } from '@/app/lib/preventiveMaintenanceModels';
-import { usePreventiveMaintenance } from '@/app/lib/PreventiveContext';
+import { usePreventiveMaintenanceStore } from '@/app/lib/stores/preventiveMaintenanceStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -56,7 +56,7 @@ const PDFMaintenanceGenerator: React.FC<PDFMaintenanceGeneratorProps> = ({ initi
   const router = useRouter();
   
   // Get maintenance data from context
-  const { maintenanceItems, fetchMaintenanceItems, topics } = usePreventiveMaintenance();
+  const { maintenanceItems, fetchMaintenanceItems, topics } = usePreventiveMaintenanceStore();
   const maintenanceData = maintenanceItems || [];
   
   // Initialize filters with URL parameters or defaults
