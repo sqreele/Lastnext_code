@@ -353,10 +353,9 @@ const CreateJobButton: React.FC<CreateJobButtonProps> = ({ propertyId, onJobCrea
                      <div>
                         <Label>Room</Label>
                         <RoomAutocomplete
-                            rooms={rooms} // Pass fetched rooms
                             selectedRoom={values.room}
-                            onSelect={(selectedRoom) => setFieldValue('room', selectedRoom)}
-                            
+                            onRoomSelect={(selectedRoom: Room) => setFieldValue('room', selectedRoom)}
+                            propertyId={propertyId}
                         />
                          {/* Manually display validation error for room object */}
                         {touched.room?.room_id && errors.room?.room_id && (

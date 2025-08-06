@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { Property } from '@/app/lib/types';
+import { usePropertyStore } from '@/app/lib/stores/propertyStore';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 const CACHE_DURATION = 5 * 60 * 1000;
@@ -30,10 +31,11 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
+  const { setUserProperties, setSelectedProperty } = usePropertyStore();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedProperty, setSelectedProperty] = useState('');
+  const [selectedProperty, setSelectedPropertyLocal] = useState('');
   const [lastFetched, setLastFetched] = useState(0);
 
   // Helper function to safely extract property ID
@@ -136,7 +138,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           : getPropertyId(normalizedProperties[0]);
           
         console.log('Setting selected property to:', defaultPropertyId);
+        setSelectedPropertyLocal(defaultPropertyId);
+        
+        // Also update the Zustand store
+        setUserProperties(normalizedProperties);
         setSelectedProperty(defaultPropertyId);
+      } else if (normalizedProperties.length > 0) {
+        // Always update the Zustand store with properties
+        setUserProperties(normalizedProperties);
       }
 
       return profile;
@@ -150,6 +159,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   }, [session?.user?.accessToken, selectedProperty, lastFetched, userProfile, getPropertyId]);
+
+  const setSelectedPropertyHandler = useCallback((propertyId: string) => {
+    setSelectedPropertyLocal(propertyId);
+    setSelectedProperty(propertyId);
+    localStorage.setItem('selectedPropertyId', propertyId);
+  }, [setSelectedProperty]);
 
   useEffect(() => {
     let mounted = true;
@@ -169,12 +184,32 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchUserProfile, status]);
 
+  // Handle session properties when user is already authenticated
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user?.properties && session.user.properties.length > 0) {
+      // Load properties from session into Zustand store
+      const sessionProperties = session.user.properties.map((prop: any) => ({
+        ...prop,
+        property_id: prop.property_id || String(prop.id),
+        name: prop.name || `Property ${prop.id}`
+      }));
+      
+      setUserProperties(sessionProperties);
+      
+      // Set selected property if none is selected
+      const { selectedProperty: currentSelected } = usePropertyStore.getState();
+      if (!currentSelected && sessionProperties.length > 0) {
+        setSelectedProperty(sessionProperties[0].property_id);
+      }
+    }
+  }, [status, session?.user?.properties, setUserProperties, setSelectedProperty]);
+
   return (
     <UserContext.Provider
       value={{
         userProfile,
         selectedProperty,
-        setSelectedProperty,
+        setSelectedProperty: setSelectedPropertyHandler,
         loading,
         error,
         refetch: fetchUserProfile,
