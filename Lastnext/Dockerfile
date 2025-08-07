@@ -129,6 +129,9 @@ RUN echo "=== BUILD OUTPUT DEBUG ===" && \
     fi && \
     echo "=== END DEBUG ==="
 
+# Set proper ownership for all built files
+RUN chown -R nextjs:nodejs /app
+
 # Clean up dev dependencies and build artifacts to reduce image size
 RUN npm ci --omit=dev --legacy-peer-deps && \
     npm cache clean --force && \
@@ -150,11 +153,17 @@ COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/next.config.mjs ./next.config.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/tailwind.config.ts ./tailwind.config.ts
+COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
+COPY --from=builder --chown=nextjs:nodejs /app/postcss.config.mjs ./postcss.config.mjs
 
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/.next/cache && \
+    mkdir -p /app/.next/types && \
     mkdir -p ./prisma && \
-    chown -R nextjs:nodejs /app
+    chown -R nextjs:nodejs /app && \
+    chmod -R 755 /app
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
@@ -166,5 +175,5 @@ USER nextjs
 # Expose port
 EXPOSE 3000
 
-# Start the application directly with Next.js
+# Start the application - can be overridden for development
 CMD ["npx", "next", "start"]
