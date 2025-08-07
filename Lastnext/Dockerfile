@@ -151,10 +151,16 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
+# Copy development entrypoint script
+COPY --chown=nextjs:nodejs dev-entrypoint.sh /app/dev-entrypoint.sh
+RUN chmod +x /app/dev-entrypoint.sh
+
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/.next/cache && \
+    mkdir -p /app/.next/types && \
     mkdir -p ./prisma && \
-    chown -R nextjs:nodejs /app
+    chown -R nextjs:nodejs /app && \
+    chmod -R 755 /app/.next
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
@@ -166,5 +172,5 @@ USER nextjs
 # Expose port
 EXPOSE 3000
 
-# Start the application directly with Next.js
-CMD ["npx", "next", "start"]
+# Start the application with proper permissions setup
+CMD ["/app/dev-entrypoint.sh", "npx", "next", "start"]
