@@ -4,7 +4,6 @@ const nextConfig = {
   reactStrictMode: true,
   
   // Optimize build performance
-  swcMinify: true,
   
   // Experimental features for better performance
   experimental: {
@@ -54,8 +53,7 @@ const nextConfig = {
     },
     
     // Parallel routes for better performance
-    parallelServerCompiles: true,
-    parallelServerBuildTraces: true,
+    
   },
   
   // Image optimization
@@ -67,8 +65,6 @@ const nextConfig = {
       'pmcs.site',
       'api.pmcs.site'
     ],
-    // Use sharp for better image optimization
-    sharp: process.env.NODE_ENV === 'production',
   },
   
   // Headers for better caching
@@ -169,9 +165,9 @@ const nextConfig = {
             lib: {
               test: /[\\/]node_modules[\\/]/,
               name(module) {
-                const packageName = module.context.match(
-                  /[\\/]node_modules[\\/](.*?)([[\\/]|$)/
-                )[1];
+                const context = module && module.context ? module.context : '';
+                const match = context.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/);
+                const packageName = match && match[1] ? match[1] : 'vendor';
                 return `npm.${packageName.replace('@', '')}`;
               },
               priority: 10,

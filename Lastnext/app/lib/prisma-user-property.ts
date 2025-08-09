@@ -1,4 +1,4 @@
-import { prisma } from "@/app/lib/prisma";
+import { getPrisma } from "@/app/lib/prisma";
 import { Property } from "@/app/lib/types";
 
 /**
@@ -6,6 +6,7 @@ import { Property } from "@/app/lib/types";
  * This handles properties through UserProperty join table
  */
 export async function getUserProperties(userId: string): Promise<Property[]> {
+  const prisma = getPrisma();
   try {
     // Attempt to get properties through raw SQL query first
     const result = await prisma.$queryRaw`
@@ -69,6 +70,7 @@ export async function getUserProperties(userId: string): Promise<Property[]> {
  * This will handle the many-to-many relationship
  */
 export async function addUserToProperty(userId: string, propertyId: string): Promise<void> {
+  const prisma = getPrisma();
   // First check if the relationship already exists
   const existingRelation = await prisma.userProperty.findUnique({
     where: {
@@ -97,6 +99,7 @@ export async function createPropertyForUser(
   userId: string, 
   propertyData: { name: string; description?: string }
 ): Promise<Property> {
+  const prisma = getPrisma();
   // Create the property
   const newProperty = await prisma.property.create({
     data: {
@@ -145,6 +148,7 @@ export async function syncUserProperties(
     return [];
   }
 
+  const prisma = getPrisma();
   // First, create or update all properties from the API
   const propertyPromises = apiProperties.map(async (prop) => {
     const propertyId = String(prop.property_id || prop.id);
