@@ -1,4 +1,4 @@
-// lib/auth.ts (or wherever your auth config is)
+// app/lib/auth.ts
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import jwt, { JwtPayload } from "jsonwebtoken";
@@ -6,11 +6,48 @@ import { NextAuthOptions } from "next-auth";
 import { prisma } from "@/app/lib/prisma";
 import { UserProfile, Property } from "@/app/lib/types";
 import { getUserProperties } from "./prisma-user-property";
-import { refreshAccessToken } from "./auth-helpers";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "https://pmcs.site");
+
+// Dedicated refresh function for NextAuth
+async function refreshAccessToken(refreshToken: string) {
+  try {
+    console.log("[NextAuth] Attempting to refresh access token...");
+    
+    const response = await fetch(`${API_BASE_URL}/api/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Refresh failed: ${response.status}`);
+    }
+
+    const refreshedTokens = await response.json();
+    if (!refreshedTokens.access) {
+      throw new Error('Refresh response missing access token');
+    }
+
+    // Decode new token to get expiry
+    const decoded = jwt.decode(refreshedTokens.access) as JwtPayload;
+    const accessTokenExpires = decoded?.exp ? decoded.exp * 1000 : Date.now() + 60 * 60 * 1000;
+
+    console.log("[NextAuth] Token refreshed successfully");
+    return {
+      accessToken: refreshedTokens.access,
+      refreshToken: refreshedTokens.refresh || refreshToken,
+      accessTokenExpires: accessTokenExpires,
+    };
+  } catch (error) {
+    console.error('[NextAuth] Token refresh error:', error);
+    return {
+      error: 'RefreshAccessTokenError',
+    };
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -26,7 +63,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          /** 🔹 Step 1: Get authentication tokens from API */
+          // Get authentication tokens from API
           const tokenResponse = await fetch(`${API_BASE_URL}/api/token/`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -34,8 +71,6 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!tokenResponse.ok) {
-            const errorText = await tokenResponse.text();
-            console.error(`Token fetch failed: ${tokenResponse.status} - ${errorText}`);
             throw new Error("Invalid credentials.");
           }
 
@@ -44,7 +79,7 @@ export const authOptions: NextAuthOptions = {
             throw new Error("Token response missing access or refresh token.");
           }
 
-          /** 🔹 Step 2: Decode JWT token to get user ID and expiry */
+          // Decode JWT token to get user ID and expiry
           const decoded = jwt.decode(tokenData.access) as JwtPayload;
           if (!decoded || typeof decoded !== "object" || !decoded.user_id) {
             throw new Error("Failed to decode access token.");
@@ -53,24 +88,22 @@ export const authOptions: NextAuthOptions = {
           const userId = String(decoded.user_id);
           const accessTokenExpires = decoded.exp ? decoded.exp * 1000 : Date.now() + 60 * 60 * 1000;
 
-          /** 🔹 Step 3: Fetch user from Prisma database */
-          let user = await prisma.user.findUnique({
-            where: { id: userId },
-          });
-
-          /** 🔹 Step 4: Fetch user profile from API */
+          // Fetch user from database and API
+          let user = await prisma.user.findUnique({ where: { id: userId } });
+          
           let profileData: Partial<UserProfile> = {};
-          const profileResponse = await fetch(`${API_BASE_URL}/api/user-profiles/${userId}/`, {
-            headers: { Authorization: `Bearer ${tokenData.access}`, "Content-Type": "application/json" },
-          });
-
-          if (profileResponse.ok) {
-            profileData = await profileResponse.json();
-          } else {
-            console.error(`Profile fetch failed: ${profileResponse.status}`);
+          try {
+            const profileResponse = await fetch(`${API_BASE_URL}/api/user-profiles/${userId}/`, {
+              headers: { Authorization: `Bearer ${tokenData.access}`, "Content-Type": "application/json" },
+            });
+            if (profileResponse.ok) {
+              profileData = await profileResponse.json();
+            }
+          } catch (error) {
+            console.error("Failed to fetch profile:", error);
           }
 
-          /** 🔹 Step 5: Create or update user in Prisma */
+          // Create or update user
           if (!user) {
             user = await prisma.user.upsert({
               where: { id: userId },
@@ -92,9 +125,8 @@ export const authOptions: NextAuthOptions = {
             });
           }
 
-          /** 🔹 Step 6: Normalize properties */
+          // Get properties
           let normalizedProperties: Property[] = [];
-          
           if (profileData.properties && profileData.properties.length > 0) {
             normalizedProperties = profileData.properties.map((prop: any) => ({
               id: String(prop.id),
@@ -113,7 +145,6 @@ export const authOptions: NextAuthOptions = {
             }
           }
 
-          /** 🔹 Step 7: Construct user profile */
           const userProfile: UserProfile = {
             id: userId,
             username: credentials.username,
@@ -124,7 +155,6 @@ export const authOptions: NextAuthOptions = {
             created_at: user.created_at.toISOString() || profileData.created_at || new Date().toISOString(),
           };
 
-          /** 🔹 Step 8: Return the user object with token expiry time */
           return {
             ...userProfile,
             accessToken: tokenData.access,
@@ -140,7 +170,7 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
       // Initial sign in
       if (user) {
         token.id = user.id;
@@ -153,37 +183,48 @@ export const authOptions: NextAuthOptions = {
         token.accessToken = user.accessToken;
         token.refreshToken = user.refreshToken;
         token.accessTokenExpires = user.accessTokenExpires;
+        return token;
       }
 
       // Return previous token if the access token has not expired yet
-      if (Date.now() < (token.accessTokenExpires as number)) {
+      // Add 5 minute buffer before expiry
+      const fiveMinutesInMs = 5 * 60 * 1000;
+      if (Date.now() < (token.accessTokenExpires as number) - fiveMinutesInMs) {
         return token;
       }
 
       // Access token has expired, try to update it
+      console.log("[NextAuth JWT] Access token expired, attempting refresh...");
+      
       try {
-        console.log("Access token has expired. Attempting refresh...");
         const refreshedToken = await refreshAccessToken(token.refreshToken as string);
         
         if (refreshedToken.error) {
-          console.error("Error refreshing token:", refreshedToken.error);
+          console.error("[NextAuth JWT] Refresh failed:", refreshedToken.error);
           return { ...token, error: "RefreshAccessTokenError" };
         }
         
-        console.log("Token refreshed successfully");
+        console.log("[NextAuth JWT] Token refreshed successfully");
         return {
           ...token,
           accessToken: refreshedToken.accessToken,
-          refreshToken: refreshedToken.refreshToken || token.refreshToken,
+          refreshToken: refreshedToken.refreshToken,
           accessTokenExpires: refreshedToken.accessTokenExpires,
+          error: undefined, // Clear any previous errors
         };
       } catch (error) {
-        console.error("Token refresh error:", error);
+        console.error("[NextAuth JWT] Token refresh error:", error);
         return { ...token, error: "RefreshAccessTokenError" };
       }
     },
 
     async session({ session, token }) {
+      if (token.error === "RefreshAccessTokenError") {
+        // Force sign out if refresh failed
+        session.error = "RefreshAccessTokenError";
+        return session;
+      }
+
       session.user = {
         id: token.id as string,
         username: token.username as string,
@@ -194,12 +235,8 @@ export const authOptions: NextAuthOptions = {
         created_at: token.created_at as string,
         accessToken: token.accessToken as string,
         refreshToken: token.refreshToken as string,
+        accessTokenExpires: token.accessTokenExpires as number,
       };
-      
-      // Pass error to the session if token refresh failed
-      if (token.error) {
-        session.error = token.error as string;
-      }
       
       return session;
     },
@@ -207,24 +244,28 @@ export const authOptions: NextAuthOptions = {
 
   events: {
     async signIn({ user }) {
-      console.log(`User ${user.id} signed in successfully`);
+      console.log(`[NextAuth] User ${user.id} signed in successfully`);
     },
     async session({ session, token }) {
       if (token.error === "RefreshAccessTokenError") {
-        console.error(`Session error: Failed to refresh access token`);
+        console.error(`[NextAuth] Session error: Failed to refresh access token`);
       }
     },
   },
 
-  pages: { signIn: "/auth/signin" },
+  pages: { 
+    signIn: "/auth/signin",
+    error: "/auth/error",
+  },
+  
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-    updateAge: 24 * 60 * 60, // Refresh every 24 hours
+    maxAge: 7 * 24 * 60 * 60, // 7 days (match your refresh token expiry)
+    updateAge: 24 * 60 * 60, // Update session every 24 hours
   },
+  
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV !== "production",
 };
+
 export default authOptions;
-// REMOVED: Don't export NextAuth(authOptions) as default
-// export default NextAuth(authOptions);
