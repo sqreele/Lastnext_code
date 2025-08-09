@@ -1,3 +1,4 @@
+// app/layout.tsx
 import { type Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/react';
@@ -5,17 +6,19 @@ import { AuthProvider } from '@/app/providers';
 import { Toaster } from '@/app/components/ui/toaster';
 import { UserProvider } from '@/app/lib/user-context';
 import { PropertyProvider } from './lib/PropertyContext';
+import SessionHandler from '@/app/components/SessionHandler'; // Add this import
 import './globals.css';
 import { JobProvider } from '@/app/lib/JobContext';
 import { PreventiveMaintenanceProvider } from '@/app/lib/PreventiveContext';
 import { FilterProvider } from '@/app/lib/FilterContext';
+
 // Initialize Inter font
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
 });
 
-// SEO-Optimized Metadata for Maintenance and Job Management Web App
+// Your existing metadata (unchanged)
 export const metadata: Metadata = {
   title: {
     default: 'Maintenance & Job Management Dashboard',
@@ -36,11 +39,11 @@ export const metadata: Metadata = {
   ],
   authors: [
     {
-      name: 'Your Name', // Replace with your actual name
+      name: 'Your Name',
       url: 'https://pmcs.site',
     },
   ],
-  creator: 'Your Name', // Replace with your actual name
+  creator: 'Your Name',
   openGraph: {
     type: 'website',
     locale: 'en_US',
@@ -50,7 +53,7 @@ export const metadata: Metadata = {
     siteName: 'Maintenance & Job Management Dashboard',
     images: [
       {
-        url: 'https://pmcs.site/og-image.jpg', // Replace with actual image URL
+        url: 'https://pmcs.site/og-image.jpg',
         width: 1200,
         height: 630,
         alt: 'Maintenance & Job Management Dashboard Preview',
@@ -61,8 +64,8 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Maintenance & Job Management Dashboard',
     description: 'A powerful tool for property maintenance and job management, built with Next.js, TypeScript, and Tailwind CSS. Track and manage tasks seamlessly.',
-    creator: '@yourtwitter', // Replace with your Twitter handle
-    images: ['https://pmcs.site/twitter-image.jpg'], // Replace with actual image URL
+    creator: '@yourtwitter',
+    images: ['https://pmcs.site/twitter-image.jpg'],
   },
   robots: {
     index: true,
@@ -86,20 +89,22 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans min-h-screen bg-background`}>
         <AuthProvider>
-          <UserProvider>
-            <PropertyProvider>
-              <JobProvider>
-              <PreventiveMaintenanceProvider>
-              <FilterProvider>
-              <main className="flex min-h-screen w-full flex-col">
-                {children}
-              </main>
-              </FilterProvider>
-              </PreventiveMaintenanceProvider>
-              <Toaster />
-              </JobProvider>
-            </PropertyProvider>
-          </UserProvider>
+          <SessionHandler> {/* Add SessionHandler here, inside AuthProvider */}
+            <UserProvider>
+              <PropertyProvider>
+                <JobProvider>
+                  <PreventiveMaintenanceProvider>
+                    <FilterProvider>
+                      <main className="flex min-h-screen w-full flex-col">
+                        {children}
+                      </main>
+                      <Toaster />
+                    </FilterProvider>
+                  </PreventiveMaintenanceProvider>
+                </JobProvider>
+              </PropertyProvider>
+            </UserProvider>
+          </SessionHandler>
         </AuthProvider>
         <Analytics />
       </body>
