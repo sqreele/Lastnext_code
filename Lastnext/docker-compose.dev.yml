@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+    volumes:
+      # Mount source code for hot reloading
+      - .:/app
+      # Exclude node_modules and .next to avoid conflicts
+      - /app/node_modules
+      - /app/.next
+    # Ensure the container runs with proper user permissions
+    user: "1001:1001"
+    # Restart policy for development
+    restart: unless-stopped
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

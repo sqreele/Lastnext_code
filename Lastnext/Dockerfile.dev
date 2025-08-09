@@ -1,0 +1,55 @@
+# Use specific Node.js LTS version with Alpine for smaller image size
+FROM node:20.17.0-alpine AS base
+
+# Install latest npm for security and performance improvements
+RUN npm install -g npm@11.4.1
+
+# Install necessary system dependencies
+RUN apk add --no-cache \
+    libc6-compat \
+    curl \
+    postgresql-client \
+    && rm -rf /var/cache/apk/*
+
+# Set working directory
+WORKDIR /app
+
+# Create non-root user early for security
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 --ingroup nodejs nextjs
+
+# Copy package files
+COPY package.json ./
+COPY package-lock.json* ./
+
+# Install dependencies
+RUN npm ci --legacy-peer-deps --no-audit --no-fund --cache /tmp/.npm
+
+# Copy source code
+COPY . .
+
+# Set proper ownership for all files
+RUN chown -R nextjs:nodejs /app && \
+    chmod -R 755 /app
+
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/.next/cache && \
+    mkdir -p /app/.next/types && \
+    mkdir -p /app/.next/trace && \
+    chown -R nextjs:nodejs /app/.next && \
+    chmod -R 755 /app/.next
+
+# Set development environment
+ENV NODE_ENV=development \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME="0.0.0.0"
+
+# Switch to non-root user for security
+USER nextjs
+
+# Expose port
+EXPOSE 3000
+
+# Start the development server with Turbopack
+CMD ["npx", "next", "dev", "--turbopack"]
