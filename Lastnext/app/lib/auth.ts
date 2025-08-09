@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { NextAuthOptions } from "next-auth";
-import { prisma } from "@/app/lib/prisma";
+import { getPrisma } from "@/app/lib/prisma";
 import { UserProfile, Property } from "@/app/lib/types";
 import { getUserProperties } from "./prisma-user-property";
 import { unstable_cache } from 'next/cache';
@@ -131,13 +131,14 @@ export const authOptions: NextAuthOptions = {
               const accessTokenExpires = decoded.exp ? decoded.exp * 1000 : Date.now() + 60 * 60 * 1000;
 
               // Parallel fetch of user data and profile
+              const prisma = getPrisma();
               const [user, profileData] = await Promise.all([
                 prisma.user.findUnique({ where: { id: userId } }),
                 getCachedUserProfile(userId, tokenData.access)
               ]);
 
               // Create or update user in database
-              const finalUser = await prisma.user.upsert({
+              const finalUser = await getPrisma().user.upsert({
                 where: { id: userId },
                 update: {
                   username: credentials.username,
