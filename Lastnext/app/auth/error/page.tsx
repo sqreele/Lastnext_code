@@ -12,6 +12,7 @@ const errorMessages = {
   default: 'An error occurred during authentication.',
   session_expired: 'Your session has expired. Please sign in again.',
   access_denied: 'Access was denied. Please try again.',
+  RefreshAccessTokenError: 'Your session could not be renewed. Please sign in again.', // Add this
 } as const;
 
 function ErrorContent() {
